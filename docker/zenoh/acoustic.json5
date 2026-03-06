@@ -4,6 +4,8 @@
 //   - Latency: 1000-4000ms (distance-dependent)
 //   - Packet loss: 30-70% (Markovian bursty model)
 //   - Partitions: Random 30-300s disconnections
+//
+// Compatible with Zenoh v1.7.x config schema
 {
   mode: "router",
 
@@ -22,23 +24,18 @@
     unicast: {
       lowlatency: false,
 
-      // Acoustic link simulation via QoS
+      // QoS enabled for acoustic link simulation
       qos: {
         enabled: true
-      },
+      }
 
       // Rate limiting to simulate 9600 baud acoustic modem
       // NOTE: In production, use tc (traffic control) on the bridge network
       // See: scripts/ci/setup_acoustic_shaping.sh
-    },
-
-    multicast: {
-      enabled: false  // Acoustic channels don't support multicast
     }
   },
 
   adminspace: {
-    enabled: true,
     permissions: {
       read: true,
       write: false

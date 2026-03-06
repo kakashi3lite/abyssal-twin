@@ -3,19 +3,20 @@
 # Target: <50MB final image, non-root, no shell
 
 # ── Stage 1: Build ─────────────────────────────────────────────────────────
-FROM rust:1.75-bookworm AS builder
+# Build context is the repo root (..); federation crate lives under src/iort_dt_federation/
+FROM rust:1.85-bookworm AS builder
 
 WORKDIR /build
 
 # Cache dependency build by copying manifests first
-COPY Cargo.toml Cargo.lock ./
+COPY src/iort_dt_federation/Cargo.toml src/iort_dt_federation/Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs \
     && cargo build --release 2>/dev/null || true \
     && rm -rf src
 
 # Build the actual binary
-COPY src/ src/
-RUN cargo build --release --locked \
+COPY src/iort_dt_federation/src/ src/
+RUN cargo build --release \
     && strip target/release/iort-federation
 
 # ── Stage 2: Runtime ───────────────────────────────────────────────────────
