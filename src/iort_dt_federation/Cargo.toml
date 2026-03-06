@@ -1,0 +1,65 @@
+[package]
+name = "iort-dt-federation"
+version = "1.0.0"
+edition = "2021"
+description = "Gossip-based federated DT coordination for AUV fleets"
+license = "Apache-2.0"
+authors = ["Swanand Tanavade <s.tanavade@unomaha.edu>"]
+repository = "https://github.com/swanand-tanavade/iort-dt"
+
+[[bin]]
+name = "iort-federation"
+path = "src/main.rs"
+
+[lib]
+name = "iort_dt_federation"
+path = "src/lib.rs"
+
+[dependencies]
+# Zenoh for peer-to-peer DT state exchange
+zenoh = { version = "1.0", features = ["default"] }
+
+# Serialization (compact binary for acoustic transmission)
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3"
+
+# Numerics (for Kalman filter reconciliation)
+nalgebra = "0.33"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Crypto (vector clock hashing)
+sha2 = "0.10"
+
+[dev-dependencies]
+tokio-test = "0.4"
+proptest = "1.4"  # Property-based testing equivalent to Python Hypothesis
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.test]
+opt-level = 1  # Faster test compilation
+
+# Strict compiler warnings (academic code quality)
+[lints.rust]
+unused = "warn"
+dead_code = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
