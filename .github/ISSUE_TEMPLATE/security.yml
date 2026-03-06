@@ -1,0 +1,36 @@
+name: Security Advisory
+description: Report a security vulnerability
+title: "[SECURITY] "
+labels: ["security", "confidential"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ Security Disclosure
+        
+        If this is an active security vulnerability, DO NOT file a public issue.
+        Instead, email s.tanavade@unomaha.edu with subject [SECURITY] abyssal-twin.
+        
+        This template is for tracking confirmed security work or post-disclosure tasks.
+        
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Estimated severity
+      options:
+        - Critical (RCE, data breach)
+        - High (privilege escalation)
+        - Medium (information disclosure)
+        - Low (minor issue)
+        - TBD (to be determined)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Description of the security issue
+    validations:
+      required: true

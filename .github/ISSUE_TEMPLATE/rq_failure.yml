@@ -1,0 +1,47 @@
+name: RQ Validation Failure
+description: Report a Research Question validation failure
+title: "[RQ-FAIL] "
+labels: ["research", "validation", "critical"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for when CI validation of Research Questions fails.
+        These are treated as high priority as they affect research integrity.
+        
+  - type: dropdown
+    id: rq
+    attributes:
+      label: Failed RQ
+      description: Which research question failed?
+      options:
+        - RQ1 (Compression & Sync)
+        - RQ2 (Federation)
+        - RQ3 (Anomaly Detection)
+        - RQ4 (Security)
+        - Multiple RQs
+    validations:
+      required: true
+      
+  - type: input
+    id: threshold
+    attributes:
+      label: Threshold Violated
+      description: What threshold was not met?
+      placeholder: e.g., "F1 < 0.90" or "ARL0 < 10000"
+    validations:
+      required: true
+      
+  - type: input
+    id: measured
+    attributes:
+      label: Measured Value
+      description: What was the actual measured value?
+      placeholder: e.g., "F1 = 0.85"
+      
+  - type: textarea
+    id: ci-link
+    attributes:
+      label: CI Run Link
+      description: Link to the failing GitHub Actions run
+      placeholder: https://github.com/kakashi3lite/abyssal-twin/actions/runs/...

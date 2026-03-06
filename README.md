@@ -1,9 +1,12 @@
-# IoRT-DT: Federated Digital Twins for Autonomous Underwater Vehicles
+# abyssal-twin: Federated Digital Twins for Autonomous Underwater Vehicles
 
-[![CI](https://github.com/swanand-tanavade/iort-dt/actions/workflows/ci.yml/badge.svg)](https://github.com/swanand-tanavade/iort-dt/actions)
+[![CI](https://github.com/kakashi3lite/abyssal-twin/actions/workflows/ci.yml/badge.svg)](https://github.com/kakashi3lite/abyssal-twin/actions)
+[![Provenance](https://github.com/kakashi3lite/abyssal-twin/actions/workflows/provenance.yml/badge.svg)](https://github.com/kakashi3lite/abyssal-twin/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![ROS2](https://img.shields.io/badge/ROS2-Jazzy-brightgreen.svg)](https://docs.ros.org/en/jazzy/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.placeholder.svg)](https://doi.org/10.5281/zenodo.placeholder)
+[![Security Scan](https://img.shields.io/badge/security-trivy-green.svg)](https://github.com/kakashi3lite/abyssal-twin/security)
+[![Multi-arch](https://img.shields.io/badge/arch-amd64%2Carm64-blue.svg)](https://github.com/kakashi3lite/abyssal-twin/pkgs/container/abyssal-twin%2Fsimulation)
+[![SLSA](https://img.shields.io/badge/SLSA-Level%203-green.svg)](https://slsa.dev)
 
 Research implementation accompanying:  
 **"IoRT-DT: Internet of Robotic Things — Digital Twins for AUV Fleets"**  
