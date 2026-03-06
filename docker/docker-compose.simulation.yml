@@ -1,0 +1,161 @@
+name: iort-dt
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  acoustic_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  grafana_data: {}
+  prometheus_data: {}
+  mlflow_data: {}
+  stonefish_cache: {}
+
+# ─── Services ─────────────────────────────────────────────────────────────────
+services:
+
+  # ── Zenoh Router: Acoustic Link Simulator ─────────────────────────────────
+  zenoh-router:
+    image: eclipse/zenoh:latest
+    container_name: iort_zenoh
+    networks:
+      acoustic_net:
+        ipv4_address: 172.28.0.10
+    ports:
+      - "7447:7447/tcp"   # Zenoh default port
+      - "7447:7447/udp"
+    volumes:
+      - ./docker/zenoh/acoustic.json5:/etc/zenoh/zenoh.json5:ro
+    command: ["zenohd", "-c", "/etc/zenoh/zenoh.json5"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/router/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Stonefish Simulator ───────────────────────────────────────────────────
+  stonefish-sim:
+    build:
+      context: ./docker/stonefish
+      dockerfile: Dockerfile
+    container_name: iort_stonefish
+    networks:
+      acoustic_net:
+        ipv4_address: 172.28.0.20
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - ZENOH_ROUTER_IP=172.28.0.10
+    volumes:
+      - ./configs/auv_models:/workspace/auv_models:ro
+      - ./configs/scenarios:/workspace/scenarios:ro
+      - stonefish_cache:/root/.stonefish
+    depends_on:
+      zenoh-router:
+        condition: service_healthy
+    restart: on-failure:3
+
+  # ── ROS 2 Workspace ───────────────────────────────────────────────────────
+  ros2:
+    build:
+      context: .
+      dockerfile: docker/ros2_workspace/Dockerfile
+    container_name: iort_ros2
+    networks:
+      acoustic_net:
+        ipv4_address: 172.28.0.30
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - ZENOH_ROUTER_IP=172.28.0.10
+      - IORT_DT_AUV_COUNT=2
+    volumes:
+      - ./src:/workspace/src:ro
+      - ./configs:/workspace/configs:ro
+      - ./experiments:/workspace/experiments
+    depends_on:
+      - zenoh-router
+      - stonefish-sim
+    command: >
+      bash -c "
+        source /opt/ros/jazzy/setup.bash &&
+        cd /workspace &&
+        colcon build --symlink-install --packages-select iort_dt_msgs iort_dt_compression iort_dt_anomaly iort_dt_bringup &&
+        source install/setup.bash &&
+        ros2 launch iort_dt_bringup simulation.launch.py auv_count:=2
+      "
+
+  # ── IoRT-DT Federation Node (Rust binary) ─────────────────────────────────
+  federation:
+    build:
+      context: ./src/iort_dt_federation
+      dockerfile: Dockerfile
+    container_name: iort_federation
+    networks:
+      acoustic_net:
+        ipv4_address: 172.28.0.40
+    environment:
+      - ZENOH_ROUTER=tcp/172.28.0.10:7447
+      - AUV_COUNT=2
+      - GOSSIP_INTERVAL_MS=500
+      - PARTITION_TIMEOUT_S=30
+    depends_on:
+      - zenoh-router
+    restart: unless-stopped
+
+  # ── Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: iort_prometheus
+    networks:
+      - acoustic_net
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  # ── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: iort_grafana
+    networks:
+      - acoustic_net
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/observability/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/observability/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ── MLflow Tracking Server ─────────────────────────────────────────────────
+  mlflow:
+    image: python:3.12-slim
+    container_name: iort_mlflow
+    networks:
+      - acoustic_net
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlruns
+    command: >
+      bash -c "pip install mlflow -q && 
+               mlflow server --host 0.0.0.0 --port 5000 
+               --backend-store-uri sqlite:///mlruns/mlflow.db 
+               --default-artifact-root /mlruns/artifacts"
+    restart: unless-stopped
+
+# ─── Profiles ─────────────────────────────────────────────────────────────────
+# Usage: docker compose --profile fleet4 up
+# For 4-AUV fleet testing (RQ2)

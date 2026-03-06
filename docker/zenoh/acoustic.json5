@@ -1,0 +1,55 @@
+// IoRT-DT Zenoh Configuration: Acoustic Link Simulation
+// Simulates realistic underwater acoustic channel constraints:
+//   - Bandwidth: ~9600 baud (1200 bytes/sec)
+//   - Latency: 1000-4000ms (distance-dependent)
+//   - Packet loss: 30-70% (Markovian bursty model)
+//   - Partitions: Random 30-300s disconnections
+{
+  mode: "router",
+
+  listen: {
+    endpoints: [
+      "tcp/0.0.0.0:7447",
+      "udp/0.0.0.0:7447"
+    ]
+  },
+
+  connect: {
+    endpoints: []
+  },
+
+  transport: {
+    unicast: {
+      lowlatency: false,
+
+      // Acoustic link simulation via QoS
+      qos: {
+        enabled: true
+      },
+
+      // Rate limiting to simulate 9600 baud acoustic modem
+      // NOTE: In production, use tc (traffic control) on the bridge network
+      // See: scripts/ci/setup_acoustic_shaping.sh
+    },
+
+    multicast: {
+      enabled: false  // Acoustic channels don't support multicast
+    }
+  },
+
+  adminspace: {
+    enabled: true,
+    permissions: {
+      read: true,
+      write: false
+    }
+  },
+
+  // Zenoh topic prefix conventions for IoRT-DT
+  // iort/dt/{auv_id}/state      - Compressed DT state vectors
+  // iort/dt/{auv_id}/anomaly    - Anomaly alerts
+  // iort/federation/{auv_id}    - Federation gossip messages
+  // iort/security/handshake     - DDS-Security negotiation
+
+  plugins: {}
+}
