@@ -38,7 +38,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Error handling
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 
 # Crypto (vector clock hashing)
 sha2 = "0.10"
