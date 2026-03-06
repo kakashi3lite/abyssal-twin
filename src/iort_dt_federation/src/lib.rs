@@ -393,3 +393,349 @@ pub mod prelude {
         FederatedDTState, FederationManager, GossipMessage, MerkleTree, VectorClock,
     };
 }
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: build a minimal DT state for testing.
+    fn make_state(auv_id: u8, x: f32, y: f32, z: f32, variance: f32) -> FederatedDTState {
+        let mut clock = VectorClock::new();
+        clock.tick(auv_id);
+        FederatedDTState {
+            auv_id,
+            timestamp: 1000.0 + auv_id as f64,
+            clock,
+            x,
+            y,
+            z,
+            yaw: 0.0,
+            position_variance: variance,
+            anomaly_detected: false,
+            anomaly_dimension: 0,
+            health_score: 255,
+            mission_phase: 1,
+        }
+    }
+
+    // ── VectorClock ──────────────────────────────────────────────────────
+
+    #[test]
+    fn vector_clock_new_is_empty() {
+        let vc = VectorClock::new();
+        assert!(vc.clocks.is_empty());
+    }
+
+    #[test]
+    fn vector_clock_tick_increments() {
+        let mut vc = VectorClock::new();
+        vc.tick(0);
+        assert_eq!(vc.clocks[&0], 1);
+        vc.tick(0);
+        assert_eq!(vc.clocks[&0], 2);
+        vc.tick(1);
+        assert_eq!(vc.clocks[&1], 1);
+    }
+
+    #[test]
+    fn vector_clock_merge_takes_max() {
+        let mut a = VectorClock::new();
+        a.tick(0); a.tick(0); // {0: 2}
+
+        let mut b = VectorClock::new();
+        b.tick(0); // {0: 1}
+        b.tick(1); b.tick(1); b.tick(1); // {1: 3}
+
+        a.merge(&b);
+        assert_eq!(a.clocks[&0], 2, "should keep local max");
+        assert_eq!(a.clocks[&1], 3, "should adopt remote for unseen key");
+    }
+
+    #[test]
+    fn vector_clock_happens_before() {
+        let mut a = VectorClock::new();
+        a.tick(0); // {0: 1}
+
+        let mut b = VectorClock::new();
+        b.tick(0); b.tick(0); // {0: 2}
+
+        assert!(a.happens_before(&b), "a < b");
+        assert!(!b.happens_before(&a), "b is not before a");
+    }
+
+    #[test]
+    fn vector_clock_concurrent_events() {
+        let mut a = VectorClock::new();
+        a.tick(0); // {0: 1}
+
+        let mut b = VectorClock::new();
+        b.tick(1); // {1: 1}
+
+        // Neither happens before the other (concurrent)
+        assert!(!a.happens_before(&b));
+        assert!(!b.happens_before(&a));
+    }
+
+    #[test]
+    fn vector_clock_equal_is_not_happens_before() {
+        let mut a = VectorClock::new();
+        a.tick(0);
+        let b = a.clone();
+        assert!(!a.happens_before(&b), "equal clocks are not ordered");
+    }
+
+    #[test]
+    fn vector_clock_serialization_round_trip() {
+        let mut vc = VectorClock::new();
+        vc.tick(0); vc.tick(1); vc.tick(1);
+        let bytes = vc.to_bytes();
+        assert!(!bytes.is_empty());
+        let deserialized: VectorClock = bincode::deserialize(&bytes)
+            .expect("should deserialize");
+        assert_eq!(vc, deserialized);
+    }
+
+    // ── MerkleTree ───────────────────────────────────────────────────────
+
+    #[test]
+    fn merkle_tree_empty_returns_zeros() {
+        let tree = MerkleTree::from_states(&[]);
+        assert_eq!(tree.root, [0u8; 32]);
+        assert!(tree.leaves.is_empty());
+    }
+
+    #[test]
+    fn merkle_tree_single_leaf_is_its_own_root() {
+        let state = make_state(0, 1.0, 2.0, -5.0, 0.5);
+        let tree = MerkleTree::from_states(&[state.clone()]);
+        assert_eq!(tree.leaves.len(), 1);
+        assert_eq!(tree.root, state.merkle_hash());
+    }
+
+    #[test]
+    fn merkle_tree_identical_states_produce_same_root() {
+        let states = vec![
+            make_state(0, 1.0, 2.0, -5.0, 0.5),
+            make_state(1, 3.0, 4.0, -8.0, 1.0),
+        ];
+        let tree_a = MerkleTree::from_states(&states);
+        let tree_b = MerkleTree::from_states(&states);
+        assert_eq!(tree_a.root, tree_b.root);
+    }
+
+    #[test]
+    fn merkle_tree_different_states_produce_different_roots() {
+        let states_a = vec![make_state(0, 1.0, 2.0, -5.0, 0.5)];
+        let states_b = vec![make_state(0, 1.0, 2.0, -6.0, 0.5)]; // z differs
+        let tree_a = MerkleTree::from_states(&states_a);
+        let tree_b = MerkleTree::from_states(&states_b);
+        assert_ne!(tree_a.root, tree_b.root);
+    }
+
+    #[test]
+    fn merkle_tree_diff_leaves_finds_divergence() {
+        let s0 = make_state(0, 1.0, 2.0, -5.0, 0.5);
+        let s1 = make_state(1, 3.0, 4.0, -8.0, 1.0);
+        let s1_changed = make_state(1, 3.0, 4.0, -9.0, 1.0); // z changed
+
+        let tree_a = MerkleTree::from_states(&[s0.clone(), s1]);
+        let tree_b = MerkleTree::from_states(&[s0, s1_changed]);
+
+        let diff = tree_a.diff_leaves(&tree_b);
+        assert_eq!(diff, vec![1], "only leaf 1 should differ");
+    }
+
+    #[test]
+    fn merkle_tree_no_diff_when_identical() {
+        let states = vec![
+            make_state(0, 1.0, 2.0, -5.0, 0.5),
+            make_state(1, 3.0, 4.0, -8.0, 1.0),
+        ];
+        let tree_a = MerkleTree::from_states(&states);
+        let tree_b = MerkleTree::from_states(&states);
+        assert!(tree_a.diff_leaves(&tree_b).is_empty());
+    }
+
+    // ── FederatedDTState ─────────────────────────────────────────────────
+
+    #[test]
+    fn merkle_hash_is_deterministic() {
+        let state = make_state(0, 1.0, 2.0, -5.0, 0.5);
+        let h1 = state.merkle_hash();
+        let h2 = state.merkle_hash();
+        assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn merkle_hash_differs_for_different_positions() {
+        let a = make_state(0, 1.0, 2.0, -5.0, 0.5);
+        let b = make_state(0, 1.0, 2.0, -5.1, 0.5);
+        assert_ne!(a.merkle_hash(), b.merkle_hash());
+    }
+
+    // ── FederationManager ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn manager_update_local_state() {
+        let mgr = FederationManager::new(0);
+        let state = make_state(0, 1.0, 2.0, -5.0, 0.5);
+        mgr.update_local_state(state).await.expect("should succeed");
+
+        let states = mgr.fleet_states.read().await;
+        assert_eq!(states.len(), 1);
+        assert!(states.contains_key(&0));
+    }
+
+    #[tokio::test]
+    async fn manager_gossip_announcement_empty_fleet() {
+        let mgr = FederationManager::new(0);
+        let msg = mgr.build_gossip_announcement().await;
+        match msg {
+            GossipMessage::MerkleRoot { from_auv, n_auvs, .. } => {
+                assert_eq!(from_auv, 0);
+                assert_eq!(n_auvs, 0);
+            }
+            _ => panic!("expected MerkleRoot"),
+        }
+    }
+
+    #[tokio::test]
+    async fn manager_gossip_announcement_reflects_fleet_size() {
+        let mgr = FederationManager::new(0);
+        mgr.update_local_state(make_state(0, 0.0, 0.0, 0.0, 1.0)).await.unwrap();
+        mgr.update_local_state(make_state(1, 5.0, 5.0, -3.0, 1.0)).await.unwrap();
+
+        let msg = mgr.build_gossip_announcement().await;
+        match msg {
+            GossipMessage::MerkleRoot { n_auvs, .. } => assert_eq!(n_auvs, 2),
+            _ => panic!("expected MerkleRoot"),
+        }
+    }
+
+    #[tokio::test]
+    async fn kalman_reconcile_favors_lower_variance() {
+        let mgr = FederationManager::new(0);
+
+        // Local state: position (10, 0, 0) with high certainty (low variance)
+        let local = make_state(1, 10.0, 0.0, 0.0, 0.1);
+        mgr.update_local_state(local).await.unwrap();
+
+        // Remote state: position (20, 0, 0) with low certainty (high variance)
+        let remote = make_state(1, 20.0, 0.0, 0.0, 10.0);
+        let reconciled = mgr.kalman_reconcile(vec![remote]).await.unwrap();
+
+        assert_eq!(reconciled.len(), 1);
+        // Fused x should be much closer to 10.0 (the more certain estimate)
+        let fused_x = reconciled[0].x;
+        assert!(fused_x < 12.0, "fused x={fused_x} should be close to 10.0");
+        assert!(fused_x > 9.0, "fused x={fused_x} should be above 9.0");
+    }
+
+    #[tokio::test]
+    async fn kalman_reconcile_equal_variance_averages() {
+        let mgr = FederationManager::new(0);
+
+        let local = make_state(1, 10.0, 0.0, 0.0, 1.0);
+        mgr.update_local_state(local).await.unwrap();
+
+        let remote = make_state(1, 20.0, 0.0, 0.0, 1.0);
+        let reconciled = mgr.kalman_reconcile(vec![remote]).await.unwrap();
+
+        // Equal variance: fused x should be the mean = 15.0
+        let fused_x = reconciled[0].x;
+        assert!((fused_x - 15.0).abs() < 0.01, "fused x={fused_x} should be ~15.0");
+    }
+
+    #[tokio::test]
+    async fn kalman_reconcile_no_local_accepts_remote() {
+        let mgr = FederationManager::new(0);
+        // Don't insert any local state for AUV 5
+
+        let remote = make_state(5, 42.0, 13.0, -7.0, 2.0);
+        let reconciled = mgr.kalman_reconcile(vec![remote.clone()]).await.unwrap();
+
+        assert_eq!(reconciled.len(), 1);
+        assert_eq!(reconciled[0].x, 42.0);
+        assert_eq!(reconciled[0].y, 13.0);
+    }
+
+    #[tokio::test]
+    async fn formation_coherence_error_perfect_match() {
+        let mgr = FederationManager::new(0);
+        mgr.update_local_state(make_state(0, 1.0, 2.0, -5.0, 0.5)).await.unwrap();
+
+        let gt = HashMap::from([(0u8, (1.0, 2.0, -5.0))]);
+        let error = mgr.formation_coherence_error(&gt).await;
+        assert!(error < 0.01, "perfect match should have ~0 error, got {error}");
+    }
+
+    #[tokio::test]
+    async fn formation_coherence_error_empty_fleet() {
+        let mgr = FederationManager::new(0);
+        let gt = HashMap::from([(0u8, (0.0, 0.0, 0.0))]);
+        let error = mgr.formation_coherence_error(&gt).await;
+        assert!(error.is_infinite(), "empty fleet should return infinity");
+    }
+
+    #[tokio::test]
+    async fn process_gossip_matching_root_returns_none() {
+        let mgr = FederationManager::new(0);
+        let state = make_state(0, 1.0, 2.0, -5.0, 0.5);
+        mgr.update_local_state(state).await.unwrap();
+
+        let announcement = mgr.build_gossip_announcement().await;
+        if let GossipMessage::MerkleRoot { root, .. } = announcement {
+            let msg = GossipMessage::MerkleRoot {
+                from_auv: 1,
+                root,
+                n_auvs: 1,
+            };
+            let response = mgr.process_gossip(msg).await.unwrap();
+            assert!(response.is_none(), "matching roots should produce no response");
+        }
+    }
+
+    #[tokio::test]
+    async fn process_gossip_mismatched_root_requests_leaves() {
+        let mgr = FederationManager::new(0);
+        mgr.update_local_state(make_state(0, 1.0, 2.0, -5.0, 0.5)).await.unwrap();
+
+        let fake_root = [0xABu8; 32]; // definitely different
+        let msg = GossipMessage::MerkleRoot {
+            from_auv: 1,
+            root: fake_root,
+            n_auvs: 1,
+        };
+        let response = mgr.process_gossip(msg).await.unwrap();
+        assert!(matches!(response, Some(GossipMessage::RequestLeaves { .. })));
+    }
+
+    #[tokio::test]
+    async fn process_gossip_state_update_merges_newer() {
+        let mgr = FederationManager::new(0);
+
+        // Insert old state for AUV 1
+        let old = FederatedDTState {
+            timestamp: 100.0,
+            ..make_state(1, 0.0, 0.0, 0.0, 1.0)
+        };
+        mgr.update_local_state(old).await.unwrap();
+
+        // Send newer state via gossip
+        let newer = FederatedDTState {
+            timestamp: 200.0,
+            x: 50.0,
+            ..make_state(1, 0.0, 0.0, 0.0, 1.0)
+        };
+        let msg = GossipMessage::StateUpdate {
+            from_auv: 1,
+            states: vec![newer],
+        };
+        mgr.process_gossip(msg).await.unwrap();
+
+        let states = mgr.fleet_states.read().await;
+        assert_eq!(states[&1].x, 50.0, "should accept newer state");
+    }
+}

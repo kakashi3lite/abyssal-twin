@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import ClassVar, Optional
 
 import numpy as np
 from numba import jit

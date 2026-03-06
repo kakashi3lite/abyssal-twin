@@ -1,0 +1,19 @@
+# IoRT-DT Prometheus Configuration
+# Scrapes federation, anomaly, and system metrics from fleet services.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Federation coordinator metrics (Rust, prometheus-client)
+  - job_name: "federation"
+    static_configs:
+      - targets: ["iort_federation:9100"]
+        labels:
+          service: "federation"
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

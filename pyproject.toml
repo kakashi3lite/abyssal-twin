@@ -19,7 +19,7 @@ numba = "^0.59.0"           # JIT for detection algorithms
 matplotlib = "^3.8.0"       # Paper figure generation
 mlflow = "^2.10.0"          # Experiment tracking
 prometheus-client = "^0.20.0"
-zenoh = "^1.0.0"            # Python Zenoh bindings
+eclipse-zenoh = "^1.0.0"    # Python Zenoh bindings
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

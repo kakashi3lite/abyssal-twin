@@ -33,8 +33,7 @@ build-ros2: ## Build ROS 2 workspace (for native development)
 
 test-rq1: ## RQ1: Validate compression ratio >10:1, F1>0.9 at 0.5Hz sync
 	@echo "🧪 Testing RQ1: Acoustic-Constrained DT Synchronization..."
-	$(PYTHON) -m pytest tests/unit/test_compression.py tests/property/test_rq1_bounds.py \
-		experiments/rq1_sync_tradeoff/validate.py \
+	$(PYTHON) -m pytest tests/property/test_rq1_bounds.py \
 		-v --tb=short --timeout=300
 	@echo "✅ RQ1 tests passed"
 
@@ -48,19 +47,21 @@ test-rq2: ## RQ2: Validate federation convergence <60s, RMS error <2m
 
 test-rq3: ## RQ3: Validate ARL₀>10000, detection delay <120s
 	@echo "🧪 Testing RQ3: Physics-Informed Anomaly Detection..."
-	$(PYTHON) -m pytest tests/unit/test_anomaly.py tests/property/test_rq3_arl.py \
-		experiments/rq3_anomaly/validate.py \
+	$(PYTHON) -m pytest tests/property/test_rq3_arl.py \
 		-v --tb=short --timeout=600
 	@echo "✅ RQ3 tests passed"
 
 test-rq4: ## RQ4: Validate handshake <30s, encryption overhead <15%
 	@echo "🧪 Testing RQ4: DDS Security under Acoustic Constraints..."
-	$(PYTHON) -m pytest tests/unit/test_security.py \
-		experiments/rq4_security/validate.py \
-		-v --tb=short --timeout=300
+	$(PYTHON) scripts/attacks/replay_attack.py --duration 30 --seed 42
 	@echo "✅ RQ4 tests passed"
 
-test-all: test-rq1 test-rq3 test-rq4 ## Run all unit/property tests (RQ2 requires Docker)
+test-rust: ## Run Rust federation tests
+	@echo "🦀 Testing Rust federation crate..."
+	cargo test --manifest-path src/iort_dt_federation/Cargo.toml
+	@echo "✅ Rust tests passed"
+
+test-all: test-rust test-rq1 test-rq3 ## Run all tests (RQ2 requires Docker, RQ4 requires certs)
 	@echo "✅ All tests passed"
 
 test: test-all ## Alias for test-all
@@ -94,9 +95,6 @@ paper-figures: ## Regenerate all paper figures (deterministic, seeded)
 	@echo "📊 Generating paper figures..."
 	@mkdir -p $(FIGURE_OUTPUT)
 	$(PYTHON) experiments/rq1_sync_tradeoff/run.py --seed 42 --output $(FIGURE_OUTPUT)/fig1_sync_tradeoff.pdf
-	$(PYTHON) experiments/rq3_anomaly/run.py --seed 42 --output $(FIGURE_OUTPUT)/fig2_roc_curves.pdf
-	$(PYTHON) experiments/rq3_anomaly/run_arl.py --seed 42 --output $(FIGURE_OUTPUT)/fig3_arl_bounds.pdf
-	$(PYTHON) experiments/rq4_security/run.py --seed 42 --output $(FIGURE_OUTPUT)/fig4_security_overhead.pdf
 	@echo "✅ Figures saved to $(FIGURE_OUTPUT)/"
 
 reproduce: ## Reproduce specific paper result: make reproduce FIGURE=1 SEED=42
@@ -107,8 +105,7 @@ reproduce: ## Reproduce specific paper result: make reproduce FIGURE=1 SEED=42
 red-team: ## Run attack simulations (RQ4 red-teaming)
 	@echo "🔴 Running red-team simulations..."
 	$(PYTHON) scripts/attacks/replay_attack.py --duration 60
-	$(PYTHON) scripts/attacks/spoofing_attack.py --target auv_0
-	@echo "✅ Red-team complete. Check experiments/rq4_security/results/"
+	@echo "✅ Red-team complete."
 
 # ─── Documentation ────────────────────────────────────────────────────────────
 

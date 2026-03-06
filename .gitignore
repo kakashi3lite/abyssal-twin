@@ -33,6 +33,7 @@ docker-volumes/
 # Environment/Secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.crt

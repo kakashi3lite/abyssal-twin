@@ -88,6 +88,8 @@ class AUVStateVector(BaseModel):
     Compressed: ~48 bytes/msg
 
     Wire format:
+        auv_id:          1 byte  (uint8, AUV identifier)
+        sequence:        4 bytes (uint32, monotonic counter)
         timestamp:       8 bytes (float64)
         pose:           12 bytes (6 × int16)
         thruster_rpms:  12 bytes (6 × int16)
@@ -95,7 +97,7 @@ class AUVStateVector(BaseModel):
         residuals:       6 bytes (3 × float16)
         flags:           1 byte  (status bitmask)
         crc:             2 bytes (CRC-16)
-        TOTAL:          42 bytes (target <50 bytes for acoustic efficiency)
+        TOTAL:          47 bytes (target <50 bytes for acoustic efficiency)
     """
 
     # Identification

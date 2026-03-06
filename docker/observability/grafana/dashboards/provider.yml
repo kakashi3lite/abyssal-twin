@@ -1,0 +1,13 @@
+# Auto-provision dashboards from this directory.
+apiVersion: 1
+
+providers:
+  - name: "IoRT-DT"
+    orgId: 1
+    folder: "IoRT-DT"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false
