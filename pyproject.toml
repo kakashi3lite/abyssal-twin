@@ -1,0 +1,88 @@
+[tool.poetry]
+name = "iort-dt"
+version = "1.0.0"
+description = "Federated Digital Twins for Autonomous Underwater Vehicle Fleets"
+authors = ["Swanand Tanavade <s.tanavade@unomaha.edu>"]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/swanand-tanavade/iort-dt"
+keywords = ["AUV", "digital-twin", "ROS2", "underwater", "federation"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pydantic = "^2.6.0"
+numpy = "^1.26.0"
+scipy = "^1.12.0"
+fastavro = "^1.9.0"         # Avro codec for state compression
+lz4 = "^4.3.0"              # LZ4 compression
+numba = "^0.59.0"           # JIT for detection algorithms
+matplotlib = "^3.8.0"       # Paper figure generation
+mlflow = "^2.10.0"          # Experiment tracking
+prometheus-client = "^0.20.0"
+zenoh = "^1.0.0"            # Python Zenoh bindings
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-timeout = "^2.3.0"
+hypothesis = "^6.100.0"     # Property-based testing (formal validation)
+ruff = "^0.3.0"
+mypy = "^1.9.0"
+pre-commit = "^3.7.0"
+jupyter = "^1.0.0"
+seaborn = "^0.13.0"
+
+[tool.poetry.scripts]
+iort-dt = "iort_dt.cli:main"
+
+# ─── Ruff (linting + formatting) ──────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",    # isort
+    "ANN",  # type annotations (critical for academic code)
+]
+ignore = ["ANN101", "ANN102"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "S"]
+"experiments/*" = ["ANN"]
+
+# ─── Mypy (strict type checking) ──────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["numba.*", "fastavro.*", "zenoh.*"]
+ignore_missing_imports = true
+
+# ─── Pytest ───────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests", "experiments"]
+addopts = "-v --tb=short"
+timeout = 300
+markers = [
+    "rq1: RQ1 synchronization tests",
+    "rq2: RQ2 federation tests",
+    "rq3: RQ3 anomaly detection tests",
+    "rq4: RQ4 security tests",
+    "slow: Tests requiring >60s",
+    "hardware: Requires physical hardware",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

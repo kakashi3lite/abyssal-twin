@@ -1,0 +1,62 @@
+# Build artifacts
+target/
+build/
+install/
+log/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.so
+*.dylib
+*.egg-info/
+dist/
+*.o
+*.a
+
+# Docker
+.docker/
+docker-volumes/
+*.tar
+*.tar.gz
+*.tar.zst
+.dockerignore
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment/Secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+!*.example.pem
+!*.example.key
+!configs/security/*.example.*
+
+# Large data files
+datasets/raw/
+datasets/processed/
+*.bag
+*.db3
+*.mcap
+*.svo
+*.svo2
+
+# Temporary
+tmp/
+temp/
+*.tmp
+.kimi/
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
+Desktop.ini
