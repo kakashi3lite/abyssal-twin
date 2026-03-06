@@ -1,0 +1,95 @@
+name: 'Security Auto-Remediation'
+description: 'Automated vulnerability scanning and safe-fix application'
+
+inputs:
+  auto-fix:
+    description: 'Automatically apply safe fixes'
+    default: 'true'
+  create-pr:
+    description: 'Create PR with fixes'
+    default: 'true'
+  github-token:
+    description: 'GitHub token for PR creation'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: npm audit (TypeScript)
+      shell: bash
+      run: |
+        cd cloudflare
+        npm audit --json > /tmp/npm-audit.json || true
+        
+        if [ "${{ inputs.auto-fix }}" == "true" ]; then
+          npm audit fix --legacy-peer-deps || true
+        fi
+        
+        # Check for remaining high/critical
+        HIGH_COUNT=$(cat /tmp/npm-audit.json | jq '.metadata.vulnerabilities.high' || echo "0")
+        CRITICAL_COUNT=$(cat /tmp/npm-audit.json | jq '.metadata.vulnerabilities.critical' || echo "0")
+        
+        echo "::notice::npm audit - High: $HIGH_COUNT, Critical: $CRITICAL_COUNT"
+        
+        if [ "$HIGH_COUNT" -gt 0 ] || [ "$CRITICAL_COUNT" -gt 0 ]; then
+          echo "::warning::Remaining npm vulnerabilities - High: $HIGH_COUNT, Critical: $CRITICAL_COUNT"
+          echo "npm-high=$HIGH_COUNT" >> $GITHUB_OUTPUT
+          echo "npm-critical=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Cargo audit (Rust)
+      shell: bash
+      run: |
+        cargo install cargo-audit --quiet 2>/dev/null || true
+        
+        if command -v cargo-audit &> /dev/null; then
+          cargo audit --json > /tmp/cargo-audit.json || true
+          
+          VULN_COUNT=$(cat /tmp/cargo-audit.json | jq '.vulnerabilities | length' || echo "0")
+          echo "::notice::cargo audit - Vulnerabilities: $VULN_COUNT"
+          
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "::warning::Found $VULN_COUNT Rust vulnerabilities"
+            if [ "${{ inputs.auto-fix }}" == "true" ]; then
+              cargo update
+            fi
+          fi
+        else
+          echo "::notice::cargo-audit not installed, skipping Rust audit"
+        fi
+    
+    - name: Check for changes
+      id: check-changes
+      shell: bash
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has-changes=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create remediation PR
+      if: inputs.create-pr == 'true' && steps.check-changes.outputs.has-changes == 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        git config user.name "kimi-security-bot"
+        git config user.email "security@kimi.abyssal"
+        
+        BRANCH_NAME="security/auto-remediate-$(date +%s)"
+        git checkout -b "$BRANCH_NAME"
+        git add -A
+        git commit -m "🔒 chore(security): automated vulnerability remediation [skip ci]"
+        git push origin "$BRANCH_NAME"
+        
+        # Create PR using GitHub CLI
+        if command -v gh &> /dev/null; then
+          gh pr create \
+            --title "🔒 Security: Automated dependency updates" \
+            --body "Auto-generated security fixes from Kimi Code orchestration" \
+            --label "security,automated" \
+            --head "$BRANCH_NAME"
+        else
+          echo "::notice::gh CLI not available, PR not created automatically"
+        fi

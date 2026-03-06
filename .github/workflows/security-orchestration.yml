@@ -1,0 +1,48 @@
+name: Security Orchestration (Weekly)
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Monday 00:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - uses: ./.github/actions/setup-monorepo
+      
+      - uses: ./.github/actions/security-remediate
+        with:
+          auto-fix: true
+          create-pr: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload SARIF (if available)
+        uses: github/codeql-action/upload-sarif@v3
+        if: false  # Disabled until SARIF generation configured
+        with:
+          sarif_file: /tmp/npm-audit.json
+          category: npm-dependencies
+
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: typescript, rust, python
+      
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3

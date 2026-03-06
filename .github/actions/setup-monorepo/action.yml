@@ -1,0 +1,87 @@
+name: 'Setup Abyssal Monorepo'
+description: 'Zero-config setup for Node 20, Rust (sccache), Python 3.12 with intelligent caching'
+
+inputs:
+  rust-components:
+    description: 'Rust components to install'
+    default: 'clippy,rustfmt'
+  rust-targets:
+    description: 'Additional Rust targets'
+    default: ''
+  setup-sccache:
+    description: 'Enable sccache for Rust'
+    default: 'true'
+
+outputs:
+  rust-cache-hit:
+    description: 'Whether sccache had a cache hit'
+    value: ${{ steps.sccache-status.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Node.js 20 (LTS Iron) - deterministic version
+    - name: Setup Node.js
+      uses: actions/setup-node@v4.0.2
+      with:
+        node-version: '20.11.0'
+        cache: 'npm'
+        cache-dependency-path: |
+          cloudflare/package-lock.json
+          mission-control/package-lock.json
+    
+    # Rust toolchain with sccache (industrial-grade caching)
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: ${{ inputs.rust-components }}
+        targets: ${{ inputs.rust-targets }}
+    
+    - name: Setup sccache
+      if: inputs.setup-sccache == 'true'
+      uses: mozilla-actions/sccache-action@v0.0.3
+      
+    - name: Configure sccache environment
+      if: inputs.setup-sccache == 'true'
+      shell: bash
+      run: |
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+        echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+        echo "SCCACHE_CACHE_SIZE=2G" >> $GITHUB_ENV
+    
+    - name: Check sccache status
+      id: sccache-status
+      shell: bash
+      run: |
+        if command -v sccache &> /dev/null; then
+          echo "sccache=$(sccache --version)" >> $GITHUB_OUTPUT
+          echo "cache-hit=true" >> $GITHUB_OUTPUT
+        else
+          echo "cache-hit=false" >> $GITHUB_OUTPUT
+        fi
+    
+    # Python with Poetry (lockfile deterministic)
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: 1.7.1
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+    
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+    
+    - name: Install Python dependencies
+      shell: bash
+      run: poetry install --no-interaction --no-root --with dev
