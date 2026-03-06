@@ -20,15 +20,13 @@
 // Reference: IoFDT (Sakaguchi et al., 2024) extended to acoustic networks
 
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 
 use anyhow::Result;
-use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::RwLock;
-use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 // ─── Data Structures ──────────────────────────────────────────────────────────
 
@@ -40,6 +38,7 @@ pub struct VectorClock {
 }
 
 impl VectorClock {
+    #[must_use]
     pub fn new() -> Self {
         Self { clocks: HashMap::new() }
     }
@@ -59,14 +58,22 @@ impl VectorClock {
     }
 
     /// Compare clocks for causality ordering.
+    #[must_use]
     pub fn happens_before(&self, other: &VectorClock) -> bool {
         self.clocks.iter().all(|(id, &t)| {
             t <= *other.clocks.get(id).unwrap_or(&0)
         }) && self != other
     }
 
+    #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).unwrap_or_default()
+    }
+}
+
+impl Default for VectorClock {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -100,14 +107,15 @@ pub struct FederatedDTState {
 
 impl FederatedDTState {
     /// Compute a stable hash for Merkle tree construction.
+    #[must_use]
     pub fn merkle_hash(&self) -> [u8; 32] {
         let mut hasher = Sha256::new();
-        hasher.update(&self.auv_id.to_le_bytes());
-        hasher.update(&self.timestamp.to_le_bytes());
-        hasher.update(&self.x.to_le_bytes());
-        hasher.update(&self.y.to_le_bytes());
-        hasher.update(&self.z.to_le_bytes());
-        hasher.update(&self.clock.to_bytes());
+        hasher.update(self.auv_id.to_le_bytes());
+        hasher.update(self.timestamp.to_le_bytes());
+        hasher.update(self.x.to_le_bytes());
+        hasher.update(self.y.to_le_bytes());
+        hasher.update(self.z.to_le_bytes());
+        hasher.update(self.clock.to_bytes());
         hasher.finalize().into()
     }
 }
@@ -123,8 +131,9 @@ pub struct MerkleTree {
 
 impl MerkleTree {
     /// Build Merkle tree from fleet states.
+    #[must_use]
     pub fn from_states(states: &[FederatedDTState]) -> Self {
-        let leaves: Vec<[u8; 32]> = states.iter().map(|s| s.merkle_hash()).collect();
+        let leaves: Vec<[u8; 32]> = states.iter().map(FederatedDTState::merkle_hash).collect();
         let root = Self::compute_root(&leaves);
         Self { leaves, root }
     }
@@ -151,6 +160,7 @@ impl MerkleTree {
     }
 
     /// Identify divergent AUV indices between two Merkle trees.
+    #[must_use]
     pub fn diff_leaves(&self, other: &MerkleTree) -> Vec<usize> {
         self.leaves
             .iter()
@@ -196,23 +206,21 @@ pub enum GossipMessage {
 pub struct FederationManager {
     pub local_auv_id: u8,
     pub fleet_states: Arc<RwLock<HashMap<u8, FederatedDTState>>>,
-    pub gossip_interval: Duration,
-    pub partition_timeout: Duration,
-    pub last_seen: Arc<RwLock<HashMap<u8, SystemTime>>>,
 }
 
 impl FederationManager {
+    #[must_use]
     pub fn new(local_auv_id: u8) -> Self {
         Self {
             local_auv_id,
             fleet_states: Arc::new(RwLock::new(HashMap::new())),
-            gossip_interval: Duration::from_millis(500),
-            partition_timeout: Duration::from_secs(30),
-            last_seen: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// Update local DT state and trigger gossip round.
+    ///
+    /// # Errors
+    /// Returns an error if the state lock is poisoned.
     pub async fn update_local_state(&self, state: FederatedDTState) -> Result<()> {
         let mut states = self.fleet_states.write().await;
         states.insert(state.auv_id, state);
@@ -220,6 +228,9 @@ impl FederationManager {
     }
 
     /// Process incoming gossip message.
+    ///
+    /// # Errors
+    /// Returns an error if Kalman reconciliation fails during partition heal.
     pub async fn process_gossip(
         &self,
         message: GossipMessage,
@@ -283,7 +294,7 @@ impl FederationManager {
                 Ok(None)
             }
 
-            _ => Ok(None),
+            GossipMessage::RequestLeaves { .. } => Ok(None),
         }
     }
 
@@ -292,10 +303,13 @@ impl FederationManager {
     /// When connectivity is restored, each node may have different estimates
     /// of fleet position. We fuse them using inverse-covariance weighting:
     ///
-    ///   x_fused = (Σ w_i x_i) / (Σ w_i)
-    ///   w_i = 1 / σ²_i  (inverse position variance)
+    ///   `x_fused` = (Σ `w_i` `x_i`) / (Σ `w_i`)
+    ///   `w_i` = 1 / `σ²_i`  (inverse position variance)
     ///
     /// This is the optimal linear estimator under Gaussian uncertainty.
+    ///
+    /// # Errors
+    /// Returns an error if state reconciliation fails.
     pub async fn kalman_reconcile(
         &self,
         remote_states: Vec<FederatedDTState>,
@@ -346,6 +360,7 @@ impl FederationManager {
     }
 
     /// Build local gossip message (Merkle root announcement).
+    #[allow(clippy::cast_possible_truncation)]  // fleet size guaranteed < 256 AUVs
     pub async fn build_gossip_announcement(&self) -> GossipMessage {
         let states = self.fleet_states.read().await;
         let state_vec: Vec<FederatedDTState> = states.values().cloned().collect();
@@ -362,16 +377,16 @@ impl FederationManager {
     /// Returns RMS position error across federated DT estimates vs provided ground truth.
     pub async fn formation_coherence_error(
         &self,
-        ground_truth: &HashMap<u8, (f64, f64, f64)>,  // auv_id → (x, y, z)
+        ground_truth: &HashMap<u8, (f64, f64, f64)>,
     ) -> f64 {
         let states = self.fleet_states.read().await;
         let errors: Vec<f64> = states
             .iter()
             .filter_map(|(id, state)| {
                 ground_truth.get(id).map(|(gt_x, gt_y, gt_z)| {
-                    let dx = state.x as f64 - gt_x;
-                    let dy = state.y as f64 - gt_y;
-                    let dz = state.z as f64 - gt_z;
+                    let dx = f64::from(state.x) - gt_x;
+                    let dy = f64::from(state.y) - gt_y;
+                    let dz = f64::from(state.z) - gt_z;
                     (dx * dx + dy * dy + dz * dz).sqrt()
                 })
             })
@@ -381,8 +396,10 @@ impl FederationManager {
             return f64::INFINITY;
         }
 
-        let mse = errors.iter().map(|e| e * e).sum::<f64>() / errors.len() as f64;
-        mse.sqrt()  // RMS error
+        #[allow(clippy::cast_precision_loss)]  // fleet size << 2^52
+        let count = errors.len() as f64;
+        let mse = errors.iter().map(|e| e * e).sum::<f64>() / count;
+        mse.sqrt()
     }
 }
 

@@ -27,15 +27,14 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 import numpy as np
 from numba import jit
 from numpy.typing import NDArray
-from scipy import stats
-
 
 # ─── Residual Signal Model ────────────────────────────────────────────────────
+
 
 @dataclass
 class ResidualSignal:
@@ -52,8 +51,8 @@ class ResidualSignal:
 
     timestamp: float
     auv_id: int
-    values: NDArray[np.float64]      # [surge, sway, heave, roll, pitch, yaw, ...] residuals
-    source: str = "stonefish_twin"   # DT engine that produced prediction
+    values: NDArray[np.float64]  # [surge, sway, heave, roll, pitch, yaw, ...] residuals
+    source: str = "stonefish_twin"  # DT engine that produced prediction
 
 
 @dataclass
@@ -80,6 +79,7 @@ class NominalDistribution:
 
 # ─── CUSUM Detector ───────────────────────────────────────────────────────────
 
+
 @dataclass
 class CUSUMConfig:
     """
@@ -98,13 +98,13 @@ class CUSUMConfig:
 
     # Reference value k: half the expected shift magnitude (in sigma units)
     # k = 0.5 × δ where δ is the detectable shift size
-    reference_k: float = 0.5   # Detects 1-sigma shifts efficiently
+    reference_k: float = 0.5  # Detects 1-sigma shifts efficiently
 
     # Minimum detectable shift (in std units)
     min_detectable_shift: float = 1.0
 
     # Residual dimensions to monitor (default: all)
-    monitor_dims: Optional[list[int]] = None
+    monitor_dims: list[int] | None = None
 
     def theoretical_arl0(self) -> float:
         """
@@ -142,7 +142,7 @@ class CUSUMDetector:
     def __init__(
         self,
         nominal: NominalDistribution,
-        config: Optional[CUSUMConfig] = None,
+        config: CUSUMConfig | None = None,
     ) -> None:
         self.nominal = nominal
         self.config = config or CUSUMConfig()
@@ -160,7 +160,7 @@ class CUSUMDetector:
         self,
         residual: ResidualSignal,
         fault_injected: bool = False,  # Ground truth for ROC validation
-    ) -> Optional["AnomalyAlert"]:
+    ) -> AnomalyAlert | None:
         """
         Update CUSUM statistics with new residual observation.
 
@@ -230,6 +230,7 @@ class CUSUMDetector:
 
 # ─── Shiryaev-Roberts Detector ────────────────────────────────────────────────
 
+
 class ShiryaevRobertsDetector:
     """
     Shiryaev-Roberts (S-R) detector for gradual drift / variance changes.
@@ -247,7 +248,7 @@ class ShiryaevRobertsDetector:
     def __init__(
         self,
         nominal: NominalDistribution,
-        threshold_a: float = 500.0,    # Detection threshold
+        threshold_a: float = 500.0,  # Detection threshold
         shift_hypothesis: float = 1.0,  # Hypothesized shift (std units)
     ) -> None:
         self.nominal = nominal
@@ -261,7 +262,7 @@ class ShiryaevRobertsDetector:
     def update(
         self,
         residual: ResidualSignal,
-    ) -> Optional["AnomalyAlert"]:
+    ) -> AnomalyAlert | None:
         """Update S-R statistic and check for alarm."""
         if not self.nominal.is_calibrated():
             return None
@@ -303,27 +304,31 @@ def _log_likelihood_ratio(z: NDArray[np.float64], delta: float) -> NDArray[np.fl
 
 # ─── Anomaly Alert Model ──────────────────────────────────────────────────────
 
+
 @dataclass
 class AnomalyAlert:
     """Structured anomaly alert published to ROS 2 / Zenoh."""
 
     timestamp: float
     auv_id: int
-    detector: str               # "CUSUM" or "ShiryaevRoberts"
+    detector: str  # "CUSUM" or "ShiryaevRoberts"
     alarm_dimensions: list[int]
-    s_plus_max: float           # Max CUSUM statistic at alarm time
+    s_plus_max: float  # Max CUSUM statistic at alarm time
     s_minus_max: float
     n_observations_since_reset: int
     ground_truth_fault: bool = False  # For ROC curve computation (experiments only)
 
     DIMENSION_NAMES: ClassVar[tuple[str, ...]] = (
-        "surge", "sway", "heave", "roll", "pitch", "yaw",
-        "thruster_current", "depth_residual", "imu_bias",
+        "surge",
+        "sway",
+        "heave",
+        "roll",
+        "pitch",
+        "yaw",
+        "thruster_current",
+        "depth_residual",
+        "imu_bias",
     )
-
-
-
-
 
     def severity(self) -> str:
         """Classify alert severity based on statistic magnitude."""
@@ -338,13 +343,13 @@ class AnomalyAlert:
     def alarmed_dimension_names(self) -> list[str]:
         """Human-readable names of alarmed state dimensions."""
         return [
-            self.DIMENSION_NAMES[d]
-            if d < len(self.DIMENSION_NAMES) else f"dim_{d}"
+            self.DIMENSION_NAMES[d] if d < len(self.DIMENSION_NAMES) else f"dim_{d}"
             for d in self.alarm_dimensions
         ]
 
 
 # ─── ARL Theoretical Bounds ───────────────────────────────────────────────────
+
 
 class ARLBounds:
     """
@@ -418,9 +423,7 @@ class ARLBounds:
           - detection_delay_target_met: True if delay < 120s at 50Hz
         """
         arl0_nom = ARLBounds.arl0_siegmund(config.reference_k, config.threshold_h)
-        arl0_loss = ARLBounds.arl0_with_packet_loss(
-            config.reference_k, config.threshold_h, p_loss
-        )
+        arl0_loss = ARLBounds.arl0_with_packet_loss(config.reference_k, config.threshold_h, p_loss)
 
         # 20% thruster fault → ~1.5σ shift in thruster current residual
         thruster_fault_shift_sigma = 1.5
@@ -446,6 +449,7 @@ class ARLBounds:
 
 # ─── Calibration ─────────────────────────────────────────────────────────────
 
+
 class OnlineNominalCalibrator:
     """
     Online calibration of nominal residual distribution.
@@ -463,7 +467,7 @@ class OnlineNominalCalibrator:
         self._n: int = 0
         self._mean: NDArray[np.float64] = np.zeros(n_dims)
         self._m2: NDArray[np.float64] = np.zeros(n_dims)
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
 
     def update(self, residual: NDArray[np.float64]) -> None:
         """Update running statistics (Welford's algorithm)."""

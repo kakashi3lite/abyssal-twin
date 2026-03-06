@@ -19,9 +19,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
-from hypothesis.extra.numpy import arrays
 
 # Add src to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -33,13 +32,12 @@ from iort_dt_compression.iort_dt_compression.models import (
 )
 from iort_dt_compression.iort_dt_compression.rate_controller import (
     AdaptiveRateController,
-    AcousticChannelSimulator,
     ChannelMetrics,
     RateControllerConfig,
 )
 
-
 # ─── Strategies (Hypothesis data generators) ─────────────────────────────────
+
 
 def pose6d_strategy():
     return st.builds(
@@ -52,6 +50,7 @@ def pose6d_strategy():
         yaw_mdeg=st.integers(-180000, 180000),
     )
 
+
 def state_vector_strategy():
     return st.builds(
         AUVStateVector,
@@ -59,19 +58,19 @@ def state_vector_strategy():
         timestamp=st.floats(min_value=0.0, max_value=1e9, allow_nan=False),
         sequence=st.integers(0, 2**32 - 1),
         pose=pose6d_strategy(),
-        thruster_rpms=st.lists(
-            st.integers(-32767, 32767), min_size=6, max_size=6
-        ),
+        thruster_rpms=st.lists(st.integers(-32767, 32767), min_size=6, max_size=6),
         battery_dv=st.integers(0, 255),
         residuals=st.lists(
             st.floats(-100.0, 100.0, allow_nan=False, allow_infinity=False),
-            min_size=3, max_size=3,
+            min_size=3,
+            max_size=3,
         ),
         flags=st.integers(0, 255),
     )
 
 
 # ─── Property 1: Serialization Round-Trip ─────────────────────────────────────
+
 
 @given(state_vector_strategy())
 @settings(max_examples=500, suppress_health_check=[HealthCheck.too_slow])
@@ -109,6 +108,7 @@ def test_wire_size_constant(sv: AUVStateVector) -> None:
 
 # ─── Property 2: Compression Ratio ────────────────────────────────────────────
 
+
 @pytest.mark.rq1
 @given(st.floats(min_value=0.01, max_value=1.0))  # sync rates ≤ 1 Hz
 def test_compression_ratio_target(sync_rate_hz: float) -> None:
@@ -119,9 +119,9 @@ def test_compression_ratio_target(sync_rate_hz: float) -> None:
                         (WIRE_SIZE_BYTES × sync_rate_hz)
     """
     physics_rate_hz = 50.0  # Stonefish default
-    compression_ratio = (
-        AUVStateVector.BASELINE_ROS_BYTES * physics_rate_hz
-    ) / (AUVStateVector.WIRE_SIZE_BYTES * sync_rate_hz)
+    compression_ratio = (AUVStateVector.BASELINE_ROS_BYTES * physics_rate_hz) / (
+        AUVStateVector.WIRE_SIZE_BYTES * sync_rate_hz
+    )
 
     assert compression_ratio >= 10.0, (
         f"Compression ratio {compression_ratio:.1f} < 10.0 at {sync_rate_hz:.2f} Hz"
@@ -129,6 +129,7 @@ def test_compression_ratio_target(sync_rate_hz: float) -> None:
 
 
 # ─── Property 3: CRC Error Detection ─────────────────────────────────────────
+
 
 @pytest.mark.rq1
 @given(st.binary(min_size=40, max_size=100))
@@ -143,7 +144,7 @@ def test_crc_detects_single_bit_errors(data: bytes) -> None:
         bit_idx = bit_position % 8
 
         corrupted = bytearray(data)
-        corrupted[byte_idx] ^= (1 << bit_idx)
+        corrupted[byte_idx] ^= 1 << bit_idx
 
         corrupted_crc = _crc16(bytes(corrupted))
         assert corrupted_crc != crc, (
@@ -152,6 +153,7 @@ def test_crc_detects_single_bit_errors(data: bytes) -> None:
 
 
 # ─── Property 4: Rate Controller Bounds ───────────────────────────────────────
+
 
 @pytest.mark.rq1
 @given(
@@ -207,6 +209,7 @@ def test_rate_controller_reduces_under_high_loss() -> None:
 
 
 # ─── Integration: Compression + Detection Pipeline ───────────────────────────
+
 
 @pytest.mark.rq1
 def test_compression_preserves_fault_signature() -> None:
@@ -266,9 +269,7 @@ def test_compression_preserves_fault_signature() -> None:
                 first_alert_after_fault = i
 
     # Assertions
-    assert alerts_before_fault == 0, (
-        f"False alarms before fault: {alerts_before_fault}"
-    )
+    assert alerts_before_fault == 0, f"False alarms before fault: {alerts_before_fault}"
     assert first_alert_after_fault is not None, (
         "CUSUM failed to detect 30% thruster fault within simulation window"
     )

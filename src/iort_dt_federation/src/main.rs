@@ -5,7 +5,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::env;
 use tokio::time::{sleep, Duration};
-use tracing::{info, warn};
+use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use iort_dt_federation::prelude::*;
@@ -45,11 +45,11 @@ async fn main() -> Result<()> {
     loop {
         tick += 1;
 
-        // Generate gossip announcement
-        let announcement = manager.build_gossip_announcement().await;
+        // Generate gossip announcement (will be sent over Zenoh in production)
+        let _announcement = manager.build_gossip_announcement().await;
 
         // Log metrics every 10 ticks
-        if tick % 10 == 0 {
+        if tick.is_multiple_of(10) {
             let states = manager.fleet_states.read().await;
             info!(
                 "📊 Federation status: {} AUVs tracked, tick={}",

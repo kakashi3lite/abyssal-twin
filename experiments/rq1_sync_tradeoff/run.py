@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")  # Non-interactive backend for CI
 
 import matplotlib.pyplot as plt
@@ -39,39 +40,27 @@ import matplotlib.ticker as ticker
 import mlflow
 import numpy as np
 from numpy.typing import NDArray
-from scipy import stats
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from iort_dt_compression.iort_dt_compression.models import (
-    AUVStateVector,
-    Pose6D,
-    _crc16,
-)
-from iort_dt_compression.iort_dt_compression.rate_controller import (
-    AcousticChannelSimulator,
-)
 from iort_dt_anomaly.iort_dt_anomaly.detectors import (
-    ARLBounds,
-    AnomalyAlert,
     CUSUMConfig,
     CUSUMDetector,
     NominalDistribution,
-    OnlineNominalCalibrator,
     ResidualSignal,
 )
 
 # ─── Simulation Parameters ────────────────────────────────────────────────────
 
-PHYSICS_RATE_HZ = 50.0          # Stonefish physics rate
-MISSION_DURATION_S = 600.0      # 10-minute simulated mission
-CALIBRATION_WINDOW_S = 180.0    # 3 minutes for nominal distribution calibration
+PHYSICS_RATE_HZ = 50.0  # Stonefish physics rate
+MISSION_DURATION_S = 600.0  # 10-minute simulated mission
+CALIBRATION_WINDOW_S = 180.0  # 3 minutes for nominal distribution calibration
 FAULT_INJECTION_TIME_S = 300.0  # Inject fault at 5-minute mark
-FAULT_DURATION_S = 120.0        # Fault lasts 2 minutes
+FAULT_DURATION_S = 120.0  # Fault lasts 2 minutes
 
 SYNC_RATES_HZ = [0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]  # Test these rates
-PACKET_LOSS_RATES = [0.0, 0.3, 0.5, 0.7]                 # Acoustic channel conditions
+PACKET_LOSS_RATES = [0.0, 0.3, 0.5, 0.7]  # Acoustic channel conditions
 
 N_DIMS = 7  # State dimensions monitored: [surge, sway, heave, roll, pitch, yaw, thruster_0]
 
@@ -111,7 +100,7 @@ def simulate_auv_residuals(
     for dim in range(N_DIMS):
         ar_coeff = 0.3
         for t in range(1, n_steps):
-            residuals[t, dim] += ar_coeff * residuals[t-1, dim]
+            residuals[t, dim] += ar_coeff * residuals[t - 1, dim]
 
     return timestamps, residuals
 
@@ -201,7 +190,7 @@ def compute_f1_score(
     false_negatives = 0
     DETECTION_WINDOW_S = 30.0  # Alert within 30s counts as TP
 
-    for i, (t, r) in enumerate(zip(timestamps, residuals)):
+    for _i, (t, r) in enumerate(zip(timestamps, residuals, strict=False)):
         signal = ResidualSignal(timestamp=float(t), auv_id=0, values=r)
         alert = detector.update(signal)
         in_fault_window = fault_start_s <= t <= (fault_end_s + DETECTION_WINDOW_S)
@@ -255,7 +244,8 @@ def run_experiment(
             )
 
             f1, prec, rec = compute_f1_score(
-                rx_timestamps, rx_residuals,
+                rx_timestamps,
+                rx_residuals,
                 FAULT_INJECTION_TIME_S,
                 FAULT_INJECTION_TIME_S + FAULT_DURATION_S,
             )
@@ -264,28 +254,28 @@ def run_experiment(
             # Compression ratio
             if i == 0 and j == 0:
                 full_bps = PHYSICS_RATE_HZ * 1200 * 8  # bits/sec (full ROS stream)
-                compressed_bps = sync_rate * 42 * 8    # bits/sec (compressed)
+                compressed_bps = sync_rate * 42 * 8  # bits/sec (compressed)
                 compression_ratios.append(full_bps / max(compressed_bps, 1.0))
 
     results["f1_matrix"] = f1_matrix
-    results["compression_ratio_at_05hz"] = (
-        PHYSICS_RATE_HZ * 1200
-    ) / (0.5 * 42)  # >10:1 target
+    results["compression_ratio_at_05hz"] = (PHYSICS_RATE_HZ * 1200) / (0.5 * 42)  # >10:1 target
 
     return results
 
 
 def generate_figure(results: dict, output_path: Path) -> None:
     """Generate publication-quality Figure 1 for paper submission."""
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.size": 12,
-        "axes.labelsize": 13,
-        "axes.titlesize": 13,
-        "legend.fontsize": 11,
-        "figure.figsize": (8, 5),
-        "figure.dpi": 300,
-    })
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.size": 12,
+            "axes.labelsize": 13,
+            "axes.titlesize": 13,
+            "legend.fontsize": 11,
+            "figure.figsize": (8, 5),
+            "figure.dpi": 300,
+        }
+    )
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -297,15 +287,21 @@ def generate_figure(results: dict, output_path: Path) -> None:
     linestyles = ["-", "--", "-.", ":"]
 
     # ── Left: F1 vs Sync Rate ──────────────────────────────────────────────
-    for j, (loss_rate, color, ls) in enumerate(zip(loss_rates, colors, linestyles)):
-        label = f"{int(loss_rate*100)}% packet loss"
-        ax1.plot(sync_rates, f1_matrix[:, j], color=color, linestyle=ls,
-                 marker="o", markersize=5, label=label, linewidth=2)
+    for j, (loss_rate, color, ls) in enumerate(zip(loss_rates, colors, linestyles, strict=True)):
+        label = f"{int(loss_rate * 100)}% packet loss"
+        ax1.plot(
+            sync_rates,
+            f1_matrix[:, j],
+            color=color,
+            linestyle=ls,
+            marker="o",
+            markersize=5,
+            label=label,
+            linewidth=2,
+        )
 
-    ax1.axhline(0.9, color="red", linestyle=":", linewidth=1.5, alpha=0.7,
-               label="F1=0.9 target")
-    ax1.axvline(0.5, color="gray", linestyle="--", linewidth=1.5, alpha=0.7,
-               label="r*=0.5 Hz")
+    ax1.axhline(0.9, color="red", linestyle=":", linewidth=1.5, alpha=0.7, label="F1=0.9 target")
+    ax1.axvline(0.5, color="gray", linestyle="--", linewidth=1.5, alpha=0.7, label="r*=0.5 Hz")
 
     ax1.set_xlabel("DT Synchronization Rate (Hz)")
     ax1.set_ylabel("Anomaly Detection F1 Score")
@@ -318,11 +314,10 @@ def generate_figure(results: dict, output_path: Path) -> None:
     ax1.xaxis.set_major_formatter(ticker.ScalarFormatter())
 
     # ── Right: Compression Ratio ───────────────────────────────────────────
-    compression_ratios = [
-        (1200 * 50) / (rate * 42) for rate in sync_rates
-    ]
-    ax2.bar(range(len(sync_rates)), compression_ratios,
-            color="#2196F3", alpha=0.8, edgecolor="navy")
+    compression_ratios = [(1200 * 50) / (rate * 42) for rate in sync_rates]
+    ax2.bar(
+        range(len(sync_rates)), compression_ratios, color="#2196F3", alpha=0.8, edgecolor="navy"
+    )
     ax2.axhline(10, color="red", linestyle="--", linewidth=2, label="10:1 target")
     ax2.set_xticks(range(len(sync_rates)))
     ax2.set_xticklabels([f"{r}Hz" for r in sync_rates], rotation=30)
@@ -332,10 +327,17 @@ def generate_figure(results: dict, output_path: Path) -> None:
     ax2.grid(True, alpha=0.3, axis="y")
 
     # Annotation
-    fig.text(0.5, -0.02,
-             "Figure 1: RQ1 Results — DT sync rate vs. anomaly detection under acoustic constraints.\n"
-             "All results Stonefish-simulated with injected thruster faults (30% efficiency loss).",
-             ha="center", fontsize=10, style="italic")
+    fig.text(
+        0.5,
+        -0.02,
+        "Figure 1: RQ1 Results — DT sync rate vs. anomaly detection"
+        " under acoustic constraints.\n"
+        "All results Stonefish-simulated with injected thruster faults"
+        " (30% efficiency loss).",
+        ha="center",
+        fontsize=10,
+        style="italic",
+    )
 
     plt.tight_layout()
     plt.savefig(output_path, bbox_inches="tight", format="pdf")

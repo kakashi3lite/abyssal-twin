@@ -14,7 +14,6 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 
@@ -23,10 +22,10 @@ import numpy as np
 class ChannelMetrics:
     """Real-time acoustic channel quality metrics."""
 
-    bandwidth_bps: float = 9600.0       # bits/sec (measured)
-    latency_ms: float = 2000.0          # round-trip latency (ms)
-    packet_loss_rate: float = 0.30      # fraction [0.0, 1.0]
-    snr_db: float = 10.0                # estimated SNR
+    bandwidth_bps: float = 9600.0  # bits/sec (measured)
+    latency_ms: float = 2000.0  # round-trip latency (ms)
+    packet_loss_rate: float = 0.30  # fraction [0.0, 1.0]
+    snr_db: float = 10.0  # estimated SNR
     timestamp: float = field(default_factory=time.time)
 
     @property
@@ -49,17 +48,17 @@ class ChannelMetrics:
 class RateControllerConfig:
     """Configuration for the adaptive rate controller."""
 
-    min_rate_hz: float = 0.1        # Minimum sync rate (acoustic blackout)
-    max_rate_hz: float = 10.0       # Maximum sync rate (excellent link)
+    min_rate_hz: float = 0.1  # Minimum sync rate (acoustic blackout)
+    max_rate_hz: float = 10.0  # Maximum sync rate (excellent link)
     target_bandwidth_fraction: float = 0.8  # Use max 80% of channel capacity
 
     # PID gains
-    kp: float = 0.5    # Proportional gain
-    ki: float = 0.1    # Integral gain
-    kd: float = 0.05   # Derivative gain
+    kp: float = 0.5  # Proportional gain
+    ki: float = 0.1  # Integral gain
+    kd: float = 0.05  # Derivative gain
 
     # State vector size (bytes) at current compression setting
-    state_vector_bytes: int = 42   # AUVStateVector.WIRE_SIZE_BYTES
+    state_vector_bytes: int = 42  # AUVStateVector.WIRE_SIZE_BYTES
 
     # Sliding window for channel estimation
     window_size: int = 20
@@ -76,15 +75,13 @@ class AdaptiveRateController:
     sync-rate/detection-accuracy tradeoff for acoustic-constrained DTs.
     """
 
-    def __init__(self, config: Optional[RateControllerConfig] = None) -> None:
+    def __init__(self, config: RateControllerConfig | None = None) -> None:
         self.config = config or RateControllerConfig()
         self._current_rate_hz: float = 1.0  # Start conservative
         self._integral: float = 0.0
         self._prev_error: float = 0.0
         self._prev_time: float = time.time()
-        self._channel_history: deque[ChannelMetrics] = deque(
-            maxlen=self.config.window_size
-        )
+        self._channel_history: deque[ChannelMetrics] = deque(maxlen=self.config.window_size)
         self._rate_history: deque[tuple[float, float]] = deque(maxlen=1000)
 
     @property
@@ -125,11 +122,13 @@ class AdaptiveRateController:
         max_rate_by_bandwidth = target_capacity_bps / bits_per_state
 
         # Set target rate
-        target_rate = float(np.clip(
-            max_rate_by_bandwidth,
-            self.config.min_rate_hz,
-            self.config.max_rate_hz,
-        ))
+        target_rate = float(
+            np.clip(
+                max_rate_by_bandwidth,
+                self.config.min_rate_hz,
+                self.config.max_rate_hz,
+            )
+        )
 
         # PID error signal: difference between target and current rate
         error = target_rate - self._current_rate_hz
@@ -148,17 +147,17 @@ class AdaptiveRateController:
 
         # PID output
         output = (
-            self.config.kp * error
-            + self.config.ki * self._integral
-            + self.config.kd * derivative
+            self.config.kp * error + self.config.ki * self._integral + self.config.kd * derivative
         )
 
         # Apply output and clamp
-        new_rate = float(np.clip(
-            self._current_rate_hz + output,
-            self.config.min_rate_hz,
-            self.config.max_rate_hz,
-        ))
+        new_rate = float(
+            np.clip(
+                self._current_rate_hz + output,
+                self.config.min_rate_hz,
+                self.config.max_rate_hz,
+            )
+        )
 
         # Additional: hard reduction if channel is degraded
         if avg_loss > 0.6:
@@ -233,10 +232,10 @@ class AcousticChannelSimulator:
         mean_latency_ms: float = 2000.0,
         latency_std_ms: float = 500.0,
         bandwidth_bps: float = 9600.0,
-        p_good_to_bad: float = 0.05,   # Markov transition prob: good → bad
-        p_bad_to_good: float = 0.30,   # Markov transition prob: bad → good
-        loss_in_good: float = 0.05,    # Loss rate in "good" state
-        loss_in_bad: float = 0.70,     # Loss rate in "bad" state
+        p_good_to_bad: float = 0.05,  # Markov transition prob: good → bad
+        p_bad_to_good: float = 0.30,  # Markov transition prob: bad → good
+        loss_in_good: float = 0.05,  # Loss rate in "good" state
+        loss_in_bad: float = 0.70,  # Loss rate in "bad" state
         rng_seed: int = 42,
     ) -> None:
         self.mean_latency_ms = mean_latency_ms

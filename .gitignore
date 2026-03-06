@@ -58,6 +58,12 @@ temp/
 *.log
 npm-debug.log*
 
+# Testing artifacts
+.hypothesis/
+mlflow.db
+mlruns/
+docs/figures/
+
 # OS
 Thumbs.db
 Desktop.ini

@@ -49,7 +49,7 @@ select = [
     "I",    # isort
     "ANN",  # type annotations (critical for academic code)
 ]
-ignore = ["ANN101", "ANN102"]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "S"]
