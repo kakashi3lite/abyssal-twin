@@ -1,0 +1,28 @@
+{
+  "name": "abyssal-twin-cloudflare",
+  "version": "1.0.0",
+  "description": "Cloudflare edge infrastructure for Abyssal Twin federated AUV fleet",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply FLEET_DB",
+    "migrate:local": "wrangler d1 migrations apply FLEET_DB --local",
+    "seed": "wrangler d1 execute FLEET_DB --file=migrations/seed.sql",
+    "seed:local": "wrangler d1 execute FLEET_DB --local --file=migrations/seed.sql",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.0.0",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.12.20",
+    "@cloudflare/workers-types": "^4.20241205.0",
+    "typescript": "^5.7.0",
+    "vitest": "3.2",
+    "wrangler": "^4.71.0"
+  }
+}

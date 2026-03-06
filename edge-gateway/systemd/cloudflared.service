@@ -1,0 +1,18 @@
+[Unit]
+Description=Cloudflare Tunnel for Abyssal Twin
+Documentation=https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cloudflared
+Group=cloudflared
+ExecStart=/usr/local/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run
+Restart=always
+RestartSec=10
+# Satellite may take a while to reconnect
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

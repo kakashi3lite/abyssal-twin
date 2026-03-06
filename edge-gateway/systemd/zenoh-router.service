@@ -1,0 +1,16 @@
+[Unit]
+Description=Zenoh Router for AUV Fleet Communication
+Documentation=https://zenoh.io/docs/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=abyssal
+Group=abyssal
+ExecStart=/usr/local/bin/zenohd --config /etc/abyssal/acoustic.json5
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

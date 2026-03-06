@@ -1,0 +1,22 @@
+# Cloudflare Tunnel configuration for the support vessel.
+# Routes TCP traffic from the vessel to Cloudflare edge network.
+# Handles auto-reconnect on satellite link interruptions.
+
+tunnel: "${CF_TUNNEL_ID}"
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Route WebSocket traffic to the local edge gateway
+  - hostname: vessel.abyssal-twin.dev
+    service: http://localhost:8787
+  # Health check endpoint
+  - hostname: vessel-health.abyssal-twin.dev
+    service: http://localhost:8788
+  # Catch-all: 404 for unmatched routes
+  - service: http_status:404
+
+# Connection tuning for satellite
+retries: 10
+grace-period: 120s
+# Disable QUIC (satellite links prefer TCP for reliability)
+protocol: http2

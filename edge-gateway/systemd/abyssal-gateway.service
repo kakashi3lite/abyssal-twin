@@ -1,0 +1,27 @@
+[Unit]
+Description=Abyssal Twin Edge Gateway
+Documentation=https://github.com/kakashi3lite/abyssal-twin
+After=network-online.target zenoh-router.service
+Wants=network-online.target
+Requires=zenoh-router.service
+
+[Service]
+Type=simple
+User=abyssal
+Group=abyssal
+ExecStart=/usr/local/bin/abyssal-gateway
+Environment=GATEWAY_CONFIG=/etc/abyssal/config.toml
+Environment=RUST_LOG=info
+Restart=always
+RestartSec=5
+# Watchdog: restart if no heartbeat within 5 minutes
+WatchdogSec=300
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/abyssal
+
+[Install]
+WantedBy=multi-user.target

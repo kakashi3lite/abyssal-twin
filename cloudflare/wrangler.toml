@@ -1,0 +1,67 @@
+# IoRT-DT: Abyssal Twin — Cloudflare Edge Deployment
+# Federated Digital Twin infrastructure for AUV fleet operations.
+# Support vessel gateway syncs to this global coordinator via satellite.
+
+name = "abyssal-twin"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── D1 Database ─────────────────────────────────────────────────────────────
+# Fleet state, anomaly events, mission metadata.
+# Schema mirrors the local SQLite cache on the support vessel for trivial delta sync.
+[[d1_databases]]
+binding = "FLEET_DB"
+database_name = "abyssal-fleet"
+database_id = ""                     # Populated by `wrangler d1 create`
+migrations_dir = "migrations"
+
+# ─── R2 Object Storage ──────────────────────────────────────────────────────
+# ROS2 bag files, compressed mission logs, audit trail.
+# $0.015/GB-month — target <$10/month for typical 30-day, 3-AUV mission.
+[[r2_buckets]]
+binding = "MISSION_STORE"
+bucket_name = "abyssal-missions"
+
+# ─── Durable Objects ────────────────────────────────────────────────────────
+# Singleton federation coordinator: gossip WebSocket endpoint, state checkpoint.
+# Uses Hibernation API to minimize cost during idle ocean missions.
+[[durable_objects.bindings]]
+name = "FEDERATION_COORDINATOR"
+class_name = "FederationCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["FederationCoordinator"]
+
+# ─── Environment Variables ──────────────────────────────────────────────────
+[vars]
+ENVIRONMENT = "production"
+# Conservative Iridium satellite bandwidth limit (kbps)
+SATELLITE_BANDWIDTH_LIMIT_KBPS = "50"
+# Batch upload interval from vessel (seconds)
+BATCH_INTERVAL_SECONDS = "60"
+
+# ─── Development Overrides ──────────────────────────────────────────────────
+[env.dev]
+name = "abyssal-twin-dev"
+
+# Dev environment must redeclare bindings (not inherited from top level)
+[[env.dev.d1_databases]]
+binding = "FLEET_DB"
+database_name = "abyssal-fleet-dev"
+database_id = ""
+migrations_dir = "migrations"
+
+[[env.dev.r2_buckets]]
+binding = "MISSION_STORE"
+bucket_name = "abyssal-missions-dev"
+
+[[env.dev.durable_objects.bindings]]
+name = "FEDERATION_COORDINATOR"
+class_name = "FederationCoordinator"
+
+[env.dev.vars]
+ENVIRONMENT = "development"
+SATELLITE_BANDWIDTH_LIMIT_KBPS = "1000"
+BATCH_INTERVAL_SECONDS = "10"

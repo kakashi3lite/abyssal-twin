@@ -1,0 +1,51 @@
+# Abyssal Twin Edge Gateway — Support Vessel Configuration
+# Deployed on the support vessel (Jetson Orin or ruggedized x86).
+
+[cloudflare]
+# Cloudflare Workers API endpoint (set via environment or tunnel)
+api_url = "https://abyssal-twin.workers.dev"
+# WebSocket endpoint for real-time Durable Object sync
+ws_url = "wss://abyssal-twin.workers.dev/ws/live"
+# Authentication token (set via CF_API_TOKEN environment variable)
+api_token = "${CF_API_TOKEN}"
+# Tunnel token for cloudflared (set via CF_TUNNEL_TOKEN env var)
+tunnel_token = "${CF_TUNNEL_TOKEN}"
+
+[satellite]
+# Conservative Iridium bandwidth limit (kbps)
+bandwidth_limit_kbps = 50
+# Batch upload interval (seconds) — buffer locally, upload in bursts
+batch_interval_seconds = 60
+# zstd compression level (22 = max; worth the CPU for expensive satellite bytes)
+compression_level = 22
+# Maximum buffer size before forced flush (bytes)
+max_buffer_bytes = 102400  # 100 KB
+
+[acoustic]
+# Zenoh router config for local AUV fleet communication
+zenoh_config = "../docker/zenoh/acoustic.json5"
+# Local state cache size limit (MB) — buffer during satellite outages
+local_cache_size_mb = 500
+# Topics to subscribe (Zenoh key expressions)
+state_topic = "iort/dt/*/state"
+anomaly_topic = "iort/dt/*/anomaly"
+federation_topic = "iort/federation/*"
+
+[gateway]
+# Unique identifier for this support vessel
+vessel_id = 10
+# Local SQLite database path (mirrors D1 schema)
+db_path = "/var/lib/abyssal/local_cache.db"
+# Log level (trace, debug, info, warn, error)
+log_level = "info"
+# Heartbeat interval to Cloudflare (seconds)
+heartbeat_interval_seconds = 30
+
+[bandwidth_tiers]
+# Adaptive sync behavior based on measured satellite bandwidth
+# Emergency mode: only anomaly alerts + heartbeats
+emergency_threshold_kbps = 10
+# Mission monitoring: state at 0.1 Hz
+mission_threshold_kbps = 50
+# Full telemetry: state at 1 Hz + extended data
+full_threshold_kbps = 100

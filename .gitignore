@@ -1,6 +1,7 @@
 # Build artifacts
 target/
 build/
+node_modules/
 install/
 log/
 logs/
