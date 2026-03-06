@@ -34,7 +34,6 @@ from iort_dt_anomaly.iort_dt_anomaly.detectors import (
 
 # ─── Helper: Create test detector ─────────────────────────────────────────────
 
-
 def make_detector(
     n_dims: int = 7,
     threshold_h: float = 10.0,
@@ -52,7 +51,6 @@ def make_detector(
 
 # ─── Claim 1: ARL₀ > 10,000 ──────────────────────────────────────────────────
 
-
 @pytest.mark.rq3
 def test_theoretical_arl0_exceeds_target() -> None:
     """
@@ -65,7 +63,9 @@ def test_theoretical_arl0_exceeds_target() -> None:
     theoretical_arl0 = config.theoretical_arl0()
 
     print(f"\nTheoretical ARL₀: {theoretical_arl0:,.0f} (target: >10,000)")
-    assert theoretical_arl0 > 10_000, f"ARL₀ = {theoretical_arl0:.0f} < 10,000"
+    assert theoretical_arl0 > 10_000, (
+        f"ARL₀ = {theoretical_arl0:.0f} < 10,000"
+    )
 
     # Verify against direct formula
     expected = np.exp(2 * 0.5 * 10.0) / (2 * 0.5)
@@ -129,7 +129,7 @@ def test_empirical_arl0_validates_theory() -> None:
 
     print(f"\nEmpirical ARL₀: {empirical_arl0:,.0f}")
     print(f"Theoretical ARL₀: {theoretical_arl0:,.0f}")
-    print(f"Ratio: {empirical_arl0 / theoretical_arl0:.2f}")
+    print(f"Ratio: {empirical_arl0/theoretical_arl0:.2f}")
 
     # Allow 3x tolerance between empirical and theoretical (asymptotic result)
     assert empirical_arl0 > 5_000, (
@@ -138,7 +138,6 @@ def test_empirical_arl0_validates_theory() -> None:
 
 
 # ─── Claim 2: Detection Delay < 120s ─────────────────────────────────────────
-
 
 @pytest.mark.rq3
 @pytest.mark.parametrize("fault_fraction", [0.10, 0.20, 0.30, 0.50])
@@ -162,7 +161,8 @@ def test_detection_delay_within_target(fault_fraction: float) -> None:
 
     print(f"\nFault: {fault_fraction:.0%} thruster loss → {shift_sigma:.1f}σ shift")
     print(
-        f"Theoretical delay: {theoretical_delay_steps:.0f} steps → {delay_s_at_05hz:.0f}s at 0.5 Hz"
+        f"Theoretical delay: {theoretical_delay_steps:.0f} steps"
+        f" → {delay_s_at_05hz:.0f}s at 0.5 Hz"
     )
 
     # 20% or greater fault must be detected within 120s
@@ -186,7 +186,7 @@ def test_cusum_detects_thruster_fault_in_simulation() -> None:
     config = CUSUMConfig(threshold_h=10.0, reference_k=0.5)
     detector = CUSUMDetector(nominal, config)
 
-    FAULT_OBS = 100  # Fault starts at observation 100 (= 200s at 0.5 Hz)
+    FAULT_OBS = 100   # Fault starts at observation 100 (= 200s at 0.5 Hz)
     MAX_OBS = 300
 
     fault_detected_at = None
@@ -207,7 +207,6 @@ def test_cusum_detects_thruster_fault_in_simulation() -> None:
 
 
 # ─── Claim 4: Gyro Drift Detection ───────────────────────────────────────────
-
 
 @pytest.mark.rq3
 def test_shiryaev_roberts_detects_gyro_drift() -> None:
@@ -254,7 +253,6 @@ def test_shiryaev_roberts_detects_gyro_drift() -> None:
 
 
 # ─── Claim 5: CUSUM vs AURA Baseline ─────────────────────────────────────────
-
 
 @pytest.mark.rq3
 def test_cusum_outperforms_threshold_baseline() -> None:
@@ -332,7 +330,6 @@ def test_cusum_outperforms_threshold_baseline() -> None:
 
 # ─── ARLBounds Verification ───────────────────────────────────────────────────
 
-
 @pytest.mark.rq3
 def test_guarantee_verification_api() -> None:
     """Test the ARLBounds.verify_guarantees() API used in paper tables."""
@@ -358,5 +355,6 @@ def test_arl0_monotone_in_threshold(h: float, k: float) -> None:
     arl0_base = ARLBounds.arl0_siegmund(k, h)
     arl0_higher = ARLBounds.arl0_siegmund(k, h + 1.0)
     assert arl0_higher > arl0_base, (
-        f"ARL₀ not monotone: h={h:.1f} gives {arl0_base:.0f}, h={h + 1:.1f} gives {arl0_higher:.0f}"
+        f"ARL₀ not monotone: h={h:.1f} gives {arl0_base:.0f}, "
+        f"h={h+1:.1f} gives {arl0_higher:.0f}"
     )

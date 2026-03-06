@@ -72,7 +72,7 @@ class Pose6D(BaseModel):
             self.x_mm,
             self.y_mm,
             self.z_mm,
-            int(self.roll_mdeg / 100),  # Scale to int16 range
+            int(self.roll_mdeg / 100),   # Scale to int16 range
             int(self.pitch_mdeg / 100),
             int(self.yaw_mdeg / 100),
         )
@@ -188,43 +188,42 @@ class AUVStateVector(BaseModel):
 
         offset = 0
 
-        auv_id = struct.unpack(">B", data[offset : offset + 1])[0]
+        auv_id = struct.unpack(">B", data[offset:offset + 1])[0]
         offset += 1
-        timestamp = struct.unpack(">d", data[offset : offset + 8])[0]
+        timestamp = struct.unpack(">d", data[offset:offset + 8])[0]
         offset += 8
-        sequence = struct.unpack(">I", data[offset : offset + 4])[0]
+        sequence = struct.unpack(">I", data[offset:offset + 4])[0]
         offset += 4
 
         # Pose (12B)
         x_mm, y_mm, z_mm, roll_s, pitch_s, yaw_s = struct.unpack(
-            ">hhhhhh", data[offset : offset + 12]
+            ">hhhhhh", data[offset:offset + 12]
         )
         offset += 12
         pose = Pose6D(
-            x_mm=x_mm,
-            y_mm=y_mm,
-            z_mm=z_mm,
+            x_mm=x_mm, y_mm=y_mm, z_mm=z_mm,
             roll_mdeg=roll_s * 100,
             pitch_mdeg=pitch_s * 100,
             yaw_mdeg=yaw_s * 100,
         )
 
         # Thruster RPMs (12B)
-        rpms = list(struct.unpack(">hhhhhh", data[offset : offset + 12]))
+        rpms = list(struct.unpack(">hhhhhh", data[offset:offset + 12]))
         offset += 12
 
         # Battery (1B)
-        battery_dv = struct.unpack(">B", data[offset : offset + 1])[0]
+        battery_dv = struct.unpack(">B", data[offset:offset + 1])[0]
         offset += 1
 
         # Residuals (6B)
         residuals = [
-            struct.unpack(">e", data[offset + i * 2 : offset + i * 2 + 2])[0] for i in range(3)
+            struct.unpack(">e", data[offset + i * 2:offset + i * 2 + 2])[0]
+            for i in range(3)
         ]
         offset += 6
 
         # Flags (1B)
-        flags = struct.unpack(">B", data[offset : offset + 1])[0]
+        flags = struct.unpack(">B", data[offset:offset+1])[0]
 
         return cls(
             auv_id=auv_id,
