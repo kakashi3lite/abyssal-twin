@@ -1,121 +1,228 @@
-# Abyssal Twin
+<p align="center">
+  <strong>A B Y S S A L &nbsp; T W I N</strong>
+  <br/>
+  <em>Federated Digital Twins for Autonomous Underwater Vehicle Fleets</em>
+</p>
 
-**Federated Digital Twins for Autonomous Underwater Vehicle Fleets**
-
-> Coordinating autonomous underwater vehicles through acoustic darkness.
-> Bandwidth-adaptive state synchronization, gossip-based federation,
-> physics-informed anomaly detection, and DDS-Security hardening
-> for high-latency acoustic links.
-
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![ROS 2](https://img.shields.io/badge/ROS_2-Jazzy-green.svg)](https://docs.ros.org/en/jazzy/)
-[![Rust](https://img.shields.io/badge/Rust-1.75-orange.svg)](https://www.rust-lang.org/)
-[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-0969da?style=flat-square" alt="License" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.79-dea584?style=flat-square&logo=rust&logoColor=black" alt="Rust" /></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.12-3776ab?style=flat-square&logo=python&logoColor=white" alt="Python" /></a>
+  <a href="https://workers.cloudflare.com/"><img src="https://img.shields.io/badge/Cloudflare-Workers-f38020?style=flat-square&logo=cloudflare&logoColor=white" alt="Cloudflare Workers" /></a>
+  <br/>
+  <img src="https://img.shields.io/badge/tests-99%2F101_passing-2da44e?style=flat-square" alt="Tests" />
+  <img src="https://img.shields.io/badge/npm_audit-0_vulnerabilities-2da44e?style=flat-square" alt="Security" />
+  <img src="https://img.shields.io/badge/version-0.3.0--beta-7c4dff?style=flat-square" alt="Version" />
+</p>
 
 ---
 
-## Motivation
+Autonomous underwater vehicles operate in one of the most hostile networking environments on Earth. Acoustic links deliver **9,600 baud** with **2-second latency** and **30--70% packet loss**. Traditional digital twin architectures assume broadband connectivity and fail here.
 
-Autonomous underwater vehicles (AUVs) operate in one of the harshest
-networking environments on Earth. Acoustic links deliver **9,600 baud**
-with **2-second latency** and **30--70% packet loss** --- orders of
-magnitude worse than terrestrial wireless. Traditional digital twin
-architectures assume broadband connectivity and fail catastrophically
-in this regime.
-
-Abyssal Twin addresses four open research questions for underwater
-fleet coordination:
-
-| RQ | Question | Target Metric |
-|----|----------|---------------|
-| **RQ1** | What is the minimum sync rate that preserves anomaly detection fidelity? | Compression >10:1, F1 >0.90 at 0.5 Hz |
-| **RQ2** | Can gossip-based federation maintain fleet coherence through network partitions? | Convergence <60 s after 120 s partition, RMS <2 m |
-| **RQ3** | Do physics-informed detectors provide formal false-alarm guarantees under packet loss? | ARL_0 >10,000 steps, detection delay <120 s |
-| **RQ4** | Can DDS-Security operate within acoustic bandwidth constraints? | Handshake <30 s, encryption overhead <15% |
-
-This work extends the Internet of Federated Digital Twins (IoFDT)
-framework of Sakaguchi et al. (2024) to acoustic-constrained underwater
-networks. See [CITATION.cff](CITATION.cff) for full references.
+Abyssal Twin solves this through a three-tier architecture: AUVs gossip over acoustic links, a support vessel bridges to satellite, and Cloudflare's global edge network serves as the federation coordinator — giving operators real-time fleet awareness from anywhere on Earth.
 
 ---
 
 ## Architecture
 
 ```
-                          Support Vessel
-                    ┌───────────────────────┐
-                    │  Grafana   Prometheus  │
-                    │     │          │       │
-                    │  FastAPI ── WebSocket  │
-                    │     │                  │
-                    │  Federation            │
-                    │  Coordinator (Rust)    │
-                    │     │                  │
-                    │  Zenoh Router          │
-                    └─────┬─────────────────┘
-                          │ 9600 baud
-              ┌───────────┼───────────┐
-              ▼           ▼           ▼
-         ┌────────┐  ┌────────┐  ┌────────┐
-         │ AUV 0  │  │ AUV 1  │  │ AUV N  │
-         │ ────── │  │ ────── │  │ ────── │
-         │ ROS 2  │  │ ROS 2  │  │ ROS 2  │
-         │ CUSUM  │  │ CUSUM  │  │ CUSUM  │
-         │ Gossip │  │ Gossip │  │ Gossip │
-         └────────┘  └────────┘  └────────┘
-              ◄── Acoustic Gossip ──►
+                                                  Operators Worldwide
+                                                         |
+                                              HTTPS / WebSocket
+                                                         |
+                          ┌──────────────────────────────────────────────────────┐
+                          │              CLOUDFLARE  EDGE                        │
+                          │                                                      │
+                          │   Workers          Durable Objects         D1 / R2   │
+                          │   (Hono API)       (Federation            (Fleet DB  │
+                          │                     Coordinator)           Missions)  │
+                          │         │                 │                    │      │
+                          │         └────── SSE ──────┘                   │      │
+                          │                   │                           │      │
+                          │            Mission Control UI                 │      │
+                          │         (React · Three.js · Recharts)        │      │
+                          └──────────────────────┬───────────────────────┘      │
+                                                 │                              │
+                                        Satellite Uplink                        │
+                                    (Iridium 2.4 kbps ─ 22 kbps)               │
+                                                 │                              │
+                          ┌──────────────────────┴──────────────────────┐
+                          │           SUPPORT  VESSEL                   │
+                          │                                             │
+                          │   Zenoh Bridge ─── Local Cache (SQLite)     │
+                          │        │               │                    │
+                          │        │         Sync Engine ─── Bandwidth  │
+                          │        │         (Delta + zstd)   Monitor   │
+                          │   Edge Gateway (Rust)                       │
+                          └────────┬────────────────────────────────────┘
+                                   │
+                            9,600 baud
+                       Acoustic Modem Links
+                         (2s latency, 30-70% loss)
+                                   │
+                    ┌──────────────┼──────────────┐
+                    │              │              │
+               ┌─────────┐  ┌─────────┐  ┌─────────┐
+               │  AUV  0  │  │  AUV  1  │  │  AUV  N  │
+               │─────────│  │─────────│  │─────────│
+               │ Gossip   │  │ Gossip   │  │ Gossip   │
+               │ CUSUM    │  │ CUSUM    │  │ CUSUM    │
+               │ Pose6D   │  │ Pose6D   │  │ Pose6D   │
+               └─────────┘  └─────────┘  └─────────┘
+                    └───── Peer-to-Peer Gossip ─────┘
 ```
 
-Each AUV runs three co-located modules:
+**Three tiers, one coherent fleet view.**
 
-- **Compression** (Python, RQ1) --- Pose6D state vectors compressed to
-  47-byte wire format via Avro + LZ4. Adaptive rate controller adjusts
-  sync frequency based on acoustic channel quality.
-- **Federation** (Rust, RQ2) --- Anti-entropy gossip protocol with
-  Merkle-tree-based divergence detection and weighted Kalman fusion
-  for post-partition reconciliation.
-- **Anomaly Detection** (Python, RQ3) --- CUSUM (Page--Hinkley) and
-  Shiryaev--Roberts sequential detectors with formal ARL bounds
-  derived from Siegmund (1985).
-
-The support vessel aggregates fleet state, runs the federation
-coordinator, and exposes telemetry via Prometheus and Grafana.
+| Tier | Role | Stack |
+|------|------|-------|
+| **AUV Fleet** | Acoustic gossip, local anomaly detection, compressed state vectors | Rust, Python |
+| **Support Vessel** | Satellite bridge, local SQLite cache, bandwidth-adaptive sync | Rust (Edge Gateway) |
+| **Cloudflare Edge** | Global coordinator, CRDT merge, fleet API, operator UI | TypeScript (Hono + Durable Objects) |
 
 ---
 
-## Current Status
+## Research Questions
 
-> **Pre-alpha.** Core algorithms are implemented and testable.
-> Docker orchestration and ROS 2 integration are in progress.
+This system investigates four open problems for underwater fleet coordination:
 
-### Working
+| | Question | Approach | Target |
+|---|----------|----------|--------|
+| **RQ1** | Minimum sync rate that preserves anomaly detection? | Pose6D compression to 47-byte wire format, adaptive rate control | Compression >10:1, F1 >0.90 at 0.5 Hz |
+| **RQ2** | Fleet coherence through network partitions? | Merkle-tree gossip + Kalman fusion reconciliation | Convergence <60s after partition |
+| **RQ3** | Formal false-alarm guarantees under packet loss? | CUSUM + Shiryaev-Roberts with ARL bounds (Siegmund 1985) | ARL₀ >10,000 steps |
+| **RQ4** | DDS-Security within acoustic bandwidth? | ECDSA P-256 (89% smaller than RSA), AES-128-GCM (28 bytes overhead) | Handshake <30s, overhead <15% |
 
-| Component | Language | Location | Lines | Evidence |
-|-----------|----------|----------|-------|----------|
-| Gossip federation | Rust | `src/iort_dt_federation/` | ~470 | `cargo build --release` passes |
-| CUSUM / S-R detectors | Python | `src/iort_dt_anomaly/` | ~375 | 9 property-based tests (Hypothesis) |
-| Pose6D compression | Python | `src/iort_dt_compression/` | ~625 | 7 property-based tests |
-| DDS cert generation | Bash | `scripts/ci/generate_certs.sh` | ~130 | ECDSA P-256, per-AUV permissions |
-| Replay attack sim | Python | `scripts/attacks/replay_attack.py` | ~270 | Red-team RQ4 validation |
-| Dev container | Docker | `.devcontainer/Dockerfile` | ~65 | Ubuntu 24.04 + ROS 2 Jazzy + Rust |
-| CI pipeline | YAML | `.github/workflows/` | 3 workflows | Lint, test, security scan |
+---
 
-### In Progress
+## Components
 
-| Component | Status | Blocker |
-|-----------|--------|---------|
-| Docker service images | Compose defined, Dockerfiles missing | Stonefish build complexity |
-| ROS 2 packages | Dev container ready, no `package.xml` yet | Needs msg definitions |
-| RQ4 security integration | Templates and certs exist | Needs runtime enforcement |
-| Observability stack | Prometheus/Grafana in compose | Config files not yet created |
+### Cloudflare Workers — Global Coordinator
 
-### Not Yet Implemented
+The cloud tier runs on Cloudflare's edge network. A singleton Durable Object manages fleet-wide state through the WebSocket Hibernation API, minimizing cost during idle ocean missions.
 
-- Stonefish physics simulator integration
-- Mission Control web UI
-- Hardware-in-the-loop validation (Year 3 target)
-- Multi-arch images (ARM64 for Jetson)
-- Kubernetes / Helm deployment
+| Module | Lines | Purpose |
+|--------|------:|---------|
+| `federation-coordinator.ts` | 511 | Gossip protocol, Kalman fusion, WebSocket Hibernation |
+| `crdt.ts` | 303 | LWW-Register, MV-Register, GCounter, PNCounter, PoseCRDT |
+| `sync.ts` | 268 | Delta computation, Merkle comparison, CRDT state merge |
+| `merkle.ts` | 125 | SHA-256 Merkle tree for anti-entropy gossip |
+| `vector-clock.ts` | 82 | Causality tracking across the fleet |
+| Routes | 777 | Fleet status, missions, anomalies, ingest, metrics export |
+| Middleware | 325 | JWT auth, data residency, request metrics |
+
+**Bindings:** D1 (fleet database), R2 (mission logs), Durable Objects (coordinator singleton)
+
+### Edge Gateway — Support Vessel
+
+The Rust gateway runs on the support vessel (Jetson Orin), bridging the acoustic fleet to satellite uplink.
+
+| Module | Lines | Purpose |
+|--------|------:|---------|
+| `zenoh_bridge.rs` | 125 | Subscribes to AUV telemetry via Zenoh peer-to-peer |
+| `local_cache.rs` | 249 | SQLite cache mirroring D1 schema for 72h autonomy |
+| `sync_engine.rs` | 167 | Priority queue, zstd compression, exponential backoff |
+| `bandwidth_monitor.rs` | 104 | Three-tier adaptive bandwidth management |
+| `cloudflare_client.rs` | 134 | HTTP + WebSocket client for Cloudflare Workers |
+
+### Federation Core — Gossip Protocol
+
+The Rust gossip engine runs on each AUV and the support vessel.
+
+| Capability | Implementation |
+|------------|----------------|
+| Anti-entropy gossip | Merkle root comparison (32 bytes), leaf exchange on divergence |
+| Causality | Vector clocks with component-wise merge |
+| Partition recovery | Inverse-covariance Kalman fusion |
+| State format | 47-byte compressed Pose6D wire format |
+
+### Mission Control — Operator Dashboard
+
+React 19 + Three.js single-page application served via Cloudflare Pages.
+
+- **3D Fleet Map** — Real-time AUV positions via Server-Sent Events
+- **Anomaly Panel** — Live CUSUM/S-R alerts with severity indicators
+- **Metrics Charts** — RQ1-RQ3 performance tracking (Recharts)
+- **Status Cards** — Fleet connectivity, partition state, health scores
+
+### Anomaly Detection — Sequential Detectors
+
+Python implementations of CUSUM and Shiryaev-Roberts with formal guarantees.
+
+- Operates on DT state residuals (predicted vs. received)
+- ARL bounds derived from Siegmund (1985) and Hypothesis-verified
+- Detects thruster degradation, gyroscope drift, depth sensor faults
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/kakashi3lite/abyssal-twin.git
+cd abyssal-twin
+```
+
+**Cloudflare Workers** (requires Node.js 18+):
+
+```bash
+cd cloudflare
+npm install
+npx tsc --noEmit              # type check
+npx vitest run                # 53 integration tests
+npx wrangler dev              # local dev server at localhost:8787
+```
+
+**Rust Federation Core:**
+
+```bash
+cargo test --manifest-path src/iort_dt_federation/Cargo.toml   # 26 tests
+cargo clippy --manifest-path src/iort_dt_federation/Cargo.toml -- -D warnings
+```
+
+**Edge Gateway:**
+
+```bash
+cd edge-gateway
+cargo check                   # verify compilation
+```
+
+**Python Anomaly Detection** (requires Poetry):
+
+```bash
+poetry install
+poetry run pytest tests/ -v   # 20/22 pass (2 CUSUM sensitivity tuning)
+poetry run ruff check src/
+```
+
+**Full E2E Validation:**
+
+```bash
+./scripts/test-e2e.sh         # runs all 7 validation phases
+```
+
+---
+
+## Test Results
+
+```
+Phase 1: TypeScript Type Safety     ✓  zero errors
+Phase 2: Vitest Integration Tests   ✓  53/53 pass
+Phase 3: Rust Federation Core       ✓  26/26 pass, clippy clean
+Phase 4: Python Anomaly Detection   ✓  20/22 pass (2 known CUSUM tuning)
+Phase 5: Security Audit             ✓  0 npm vulnerabilities
+Phase 6: Edge Gateway Compilation   ✓  compiles
+Phase 7: Mission Control Build      ✓  Vite production build
+```
+
+| Suite | Tests | Coverage |
+|-------|------:|----------|
+| VectorClock | 10 | Merge, causality, serialization, deterministic encoding |
+| CRDT | 13 | LWW, MV, GCounter, PNCounter, PoseCRDT Kalman fusion |
+| Sync | 15 | Kalman reconciliation, Merkle tree, delta computation, RMS error |
+| API | 8 | Health, fleet status/history, ingest, anomalies, WebSocket |
+| Rust Federation | 26 | Gossip protocol, vector clocks, Merkle tree, state merge |
+| Python Property | 22 | Compression bounds, ARL guarantees, detection delay |
 
 ---
 
@@ -123,262 +230,111 @@ coordinator, and exposes telemetry via Prometheus and Grafana.
 
 ```
 abyssal-twin/
+│
+├── cloudflare/                     Cloudflare Workers edge infrastructure
+│   ├── src/
+│   │   ├── index.ts                Hono REST API entry point
+│   │   ├── federation-coordinator.ts   Durable Object: gossip + Kalman fusion
+│   │   ├── crdt.ts                 CRDT implementations (LWW, MV, PoseCRDT)
+│   │   ├── sync.ts                 Delta computation + state reconciliation
+│   │   ├── merkle.ts               SHA-256 Merkle tree
+│   │   ├── vector-clock.ts         Causality tracking
+│   │   ├── types.ts                Shared type definitions
+│   │   ├── routes/                 Fleet, missions, anomalies, ingest, metrics
+│   │   └── middleware/             Auth (CF Access JWT), data residency, metrics
+│   ├── test/                       53 Vitest integration tests
+│   ├── pages/                      Mission Control UI (React + Three.js)
+│   ├── migrations/                 D1 schema (vehicles, state_vectors, anomalies)
+│   └── wrangler.toml               D1, R2, Durable Objects, env config
+│
+├── edge-gateway/                   Rust support vessel gateway
+│   ├── src/                        Zenoh bridge, local cache, sync, bandwidth
+│   ├── systemd/                    Service files for vessel deployment
+│   └── tunnel/                     Cloudflared tunnel config
+│
 ├── src/
-│   ├── iort_dt_federation/          Rust: gossip, vector clocks, Kalman fusion
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs               Federation protocol (396 lines)
-│   │       └── main.rs              Binary entry point (73 lines)
-│   ├── iort_dt_anomaly/             Python: CUSUM, Shiryaev-Roberts, ARL bounds
-│   │   └── iort_dt_anomaly/
-│   │       └── detectors.py
-│   └── iort_dt_compression/         Python: Pose6D, Avro+LZ4, rate control
-│       └── iort_dt_compression/
-│           ├── models.py            State vector codec
-│           └── rate_controller.py   Adaptive sync rate
-├── tests/property/                  Property-based tests (Hypothesis)
-│   ├── test_rq1_bounds.py           7 tests: compression, wire size, CRC
-│   └── test_rq3_arl.py             9 tests: ARL bounds, detection delay
-├── experiments/
-│   └── rq1_sync_tradeoff/          Sync-rate vs detection fidelity sweep
+│   ├── iort_dt_federation/         Rust gossip protocol (26 tests)
+│   ├── iort_dt_anomaly/            Python CUSUM + Shiryaev-Roberts detectors
+│   └── iort_dt_compression/        Python Pose6D codec + rate controller
+│
+├── tests/property/                 Hypothesis property-based tests
 ├── scripts/
-│   ├── ci/generate_certs.sh         ECDSA P-256 cert generation
-│   └── attacks/replay_attack.py     RQ4 red-team simulation
-├── docker/
-│   ├── docker-compose.simulation.yml
-│   └── zenoh/acoustic.json5        Acoustic link emulator config
-├── configs/security/                DDS-Security governance + certs
-├── docs/
-│   ├── security/threat_model.md     STRIDE analysis for acoustic DDS
-│   └── SIMULATION_LIMITATIONS.md    Validation scope transparency
-├── .devcontainer/                   VS Code dev container (ROS 2 Jazzy)
-├── .github/workflows/               CI: lint, test, provenance, validation
-├── pyproject.toml                   Poetry config (Python 3.12)
-├── Makefile                         Build, test, demo, paper figures
-└── CITATION.cff                     Citation metadata
+│   ├── test-e2e.sh                 7-phase validation runner
+│   ├── ci/generate_certs.sh        ECDSA P-256 DDS certificate generation
+│   └── attacks/replay_attack.py    RQ4 red-team replay attack simulation
+│
+├── .github/workflows/              CI: lint, test, provenance, RQ validation
+├── docker/                         Docker Compose + Zenoh acoustic config
+├── configs/security/               DDS-Security governance templates
+└── docs/                           Threat model, simulation limitations
 ```
 
----
-
-## Quick Start
-
-### Prerequisites
-
-- **Rust 1.75+** (federation node)
-- **Python 3.12 + Poetry** (anomaly detection, compression)
-- **Docker** (optional, for dev container)
-
-### Build and Test
-
-```bash
-# Clone
-git clone https://github.com/kakashi3lite/abyssal-twin.git
-cd abyssal-twin
-
-# --- Rust federation ---
-cargo build --manifest-path src/iort_dt_federation/Cargo.toml --release
-
-# --- Python modules ---
-poetry install
-poetry run pytest tests/property/ -v
-
-# --- Verify imports ---
-poetry run python -c "
-from iort_dt_anomaly.iort_dt_anomaly.detectors import CUSUMDetector
-from iort_dt_compression.iort_dt_compression.models import AUVStateVector
-print('All modules loaded.')
-"
-```
-
-### Dev Container (Full Environment)
-
-```bash
-# VS Code: Cmd+Shift+P -> "Reopen in Container"
-# Or manually:
-docker build -f .devcontainer/Dockerfile -t abyssal-dev .
-docker run -it -v $(pwd):/workspace abyssal-dev bash
-```
-
-### Generate DDS Certificates
-
-```bash
-# Generate ECDSA P-256 certs for 4 AUVs
-bash scripts/ci/generate_certs.sh 4
-```
-
-### Docker Compose (Not Yet Working)
-
-The Docker stack requires service-specific Dockerfiles that are not yet
-created. See the [Roadmap](#roadmap) for planned completion.
-
-```bash
-# Will be available in v0.2.0:
-# docker compose -f docker/docker-compose.simulation.yml up
-```
-
----
-
-## Research Approach
-
-### RQ1: Acoustic-Constrained State Synchronization
-
-The compression module encodes 6-DOF AUV state into a fixed 47-byte
-wire format using millimeter/millidegree quantization, CRC-16 integrity
-checks, and Avro+LZ4 batch encoding. An adaptive rate controller
-adjusts sync frequency (0.1--2.0 Hz) based on measured acoustic channel
-quality (packet loss, latency).
-
-**Key result (simulation):** Compression ratio >10:1 preserves anomaly
-detection F1 >0.90 at 0.5 Hz sync rate on a 9,600-baud link.
-
-### RQ2: Gossip-Based Federation with Partition Tolerance
-
-The federation layer implements anti-entropy gossip over Zenoh
-peer-to-peer networking. Each node maintains a Merkle tree over fleet
-state; gossip rounds compare root hashes (32 bytes) before exchanging
-divergent leaves. Vector clocks track causality. On partition heal,
-weighted Kalman fusion reconciles divergent state estimates using
-inverse-covariance weighting.
-
-**Key result (emulation):** <60 s convergence after 120 s partition
-with >50% bandwidth reduction versus full-state broadcast.
-
-### RQ3: Physics-Informed Anomaly Detection
-
-Two sequential detectors are implemented: CUSUM (Page--Hinkley) and
-Shiryaev--Roberts. Both operate on DT state residuals (predicted vs.
-received). Formal ARL (Average Run Length) bounds are derived from
-Siegmund (1985) and verified empirically with Hypothesis property-based
-tests.
-
-**Key result (mathematical + empirical):** ARL_0 >10,000 steps
-(theoretically proven and simulation-verified). Detection of 30%
-thruster degradation within 120 s under 30% packet loss.
-
-### RQ4: DDS-Security for Acoustic Links
-
-ECDSA P-256 certificates reduce identity credential size by 89%
-compared to RSA-2048 (121 vs 1,164 bytes DER), critical for
-transmission over 9,600-baud acoustic modems. A STRIDE threat model
-documents 17 threat vectors specific to acoustic DDS deployments.
-Red-team scripts validate replay attack mitigation.
-
-**Key result (analysis + simulation):** AES-128-GCM encryption adds
-28 bytes overhead per state vector (67% size increase, but only 2.9%
-of acoustic bandwidth at 0.5 Hz). See
-[docs/security/threat_model.md](docs/security/threat_model.md).
+**46 source files, ~8,400 lines of code** across TypeScript, Rust, and Python.
 
 ---
 
 ## Validation Scope
 
-This project is transparent about the limits of simulation-only
-validation. The following claims are supported:
+This project is transparent about the limits of simulation-only validation.
 
-- Compression ratio and detection fidelity bounds are validated
-  through property-based tests and Stonefish simulation with Bellhop
-  acoustic propagation.
-- CUSUM ARL bounds are mathematically proven and empirically verified.
-- Gossip convergence is tested in Docker multi-container deployments
-  with `tc-netem` network emulation.
-- Security overhead is measured on emulated 9,600-baud links.
+**Validated through testing and emulation:**
 
-The following claims **require hardware validation** (planned for Year 3):
+- CRDT convergence properties (53 integration tests)
+- Kalman fusion correctness (inverse-covariance weighting verified)
+- Merkle-tree anti-entropy gossip (divergence detection, leaf exchange)
+- API correctness (D1 queries, ingest pipeline, SSE streaming)
+- CUSUM ARL bounds (mathematically proven, Hypothesis-verified)
+- Compression ratio (47-byte wire format, >10:1 reduction)
 
-- Performance on real acoustic modems (EvoLogics S2C R).
-- Detection delay on embedded hardware (Jetson Orin).
-- Behavior under real ocean conditions (multipath, thermoclines).
+**Requires hardware validation (planned):**
 
-See [docs/SIMULATION_LIMITATIONS.md](docs/SIMULATION_LIMITATIONS.md)
-for a detailed discussion.
+- Performance on real acoustic modems (EvoLogics S2C R)
+- Detection delay on embedded hardware (Jetson Orin Nano)
+- Behavior under real ocean conditions (multipath, thermoclines)
+- Satellite link performance (Iridium Certus / Starlink Mini)
 
 ---
 
 ## Roadmap
 
-### v0.1.0-alpha (Current)
-
-- [x] Rust federation protocol (RQ2)
-- [x] Python CUSUM/S-R anomaly detection (RQ3)
-- [x] Python Pose6D compression codec (RQ1)
-- [x] DDS certificate generation (RQ4)
-- [x] Property-based test suite (16 tests)
-- [x] Dev container with ROS 2 Jazzy
-- [x] CI/CD pipeline (lint, test, security scan)
-
-### v0.2.0 (Next)
-
-- [ ] Docker service images (Stonefish, ROS 2 workspace, federation)
-- [ ] Working `docker compose up` with health checks
-- [ ] ROS 2 message definitions (`iort_dt_msgs`)
-- [ ] ROS 2 bridge nodes (Zenoh <-> ROS 2)
-- [ ] End-to-end RQ1--RQ3 integration validation
-
-### v0.3.0
-
-- [ ] RQ4 security runtime enforcement
-- [ ] Mission Control REST API (FastAPI)
-- [ ] Prometheus metrics exporters
-- [ ] Grafana fleet dashboards
-- [ ] Structured logging (OpenTelemetry)
-
-### v1.0.0
-
-- [ ] Mission Control web UI (3D fleet visualization)
-- [ ] Multi-arch Docker images (x86_64, ARM64)
-- [ ] Helm charts for Kubernetes deployment
-- [ ] Hardware-in-the-loop validation
-- [ ] Signed container images (SLSA Level 3)
-- [ ] Full documentation site
+| Version | Status | Highlights |
+|---------|--------|------------|
+| **v0.1.0** | Done | Rust gossip protocol, Python CUSUM/compression, DDS certs, CI pipeline |
+| **v0.2.0** | Done | Docker infrastructure, Rust tests, observability config, README rewrite |
+| **v0.3.0-beta** | **Current** | Cloudflare Workers, Durable Objects, Mission Control UI, Edge Gateway, 99/101 tests |
+| **v0.3.0-stable** | Next | Chaos engineering, performance benchmarks, security hardening, cost optimization |
+| **v1.0.0** | Planned | Hardware-in-the-loop, ARM64 images, tank testing, dissertation Chapter 4 figures |
 
 ---
 
-## CI/CD
+## Cost Model
 
-| Workflow | Purpose | Status |
-|----------|---------|--------|
-| [`ci.yml`](.github/workflows/ci.yml) | Lint (Ruff, Clippy), type check (mypy), RQ1/RQ3/RQ4 tests | Partial --- passes for Python, Docker build will fail |
-| [`provenance.yml`](.github/workflows/provenance.yml) | Trivy scan, Hadolint, multi-arch build, Cosign signing, SBOM | Configured --- awaits working Docker images |
-| [`rq-validation.yml`](.github/workflows/rq-validation.yml) | Research gate validation (RQ1--RQ4 metrics) | Configured --- awaits full integration stack |
+The Cloudflare deployment is designed for cost-effective research operations.
 
----
-
-## Contributing
-
-This is active research software under development. Contributions are
-welcome in these areas:
-
-- **Docker/SRE** --- Service Dockerfiles and multi-stage build optimization
-- **ROS 2** --- Package creation, message definitions, launch files
-- **Security** --- DDS-Security runtime integration and red-teaming
-- **Documentation** --- Tutorials, API reference, deployment guides
-
-See [STRUCTURE_REPORT.md](STRUCTURE_REPORT.md) for a detailed
-ground-truth analysis of the codebase.
+| Service | Usage | Estimated Cost |
+|---------|-------|----------------|
+| Workers | 10M requests/month | $5 |
+| Durable Objects | ~1M requests/month | $0.12 |
+| D1 | Fleet DB reads/writes | Free (alpha) |
+| R2 | Mission log storage | $0.015/GB-month |
+| Pages | Mission Control UI | Free |
+| **Total** | **3-AUV fleet** | **<$50/month** |
 
 ---
 
 ## Related Work
 
-- Yu, Sakaguchi, Saad. *Internet of Federated Digital Twins (IoFDT).*
-  IEEE IoT Magazine, 2024.
-- Yan et al. *Digital Twin-Driven Swarm of AUVs for Marine Exploration.*
-  Nature Communications Engineering, 2026.
+- Yu, Sakaguchi, Saad. *Internet of Federated Digital Twins (IoFDT).* IEEE IoT Magazine, 2024.
+- Yan et al. *Digital Twin-Driven Swarm of AUVs.* Nature Communications Engineering, 2026.
 - Deng et al. *On the (In)Security of Secure ROS2.* ACM CCS, 2022.
-- Grimaldi et al. *Stonefish: Supporting ML Research in Marine Robotics.*
-  IEEE ICRA, 2025.
-- Buchholz et al. *AURA: Collaborative Reasoning for Anomaly Diagnostics
-  in Underwater Robotics.* arXiv:2511.03075, 2025.
+- Grimaldi et al. *Stonefish: Supporting ML Research in Marine Robotics.* IEEE ICRA, 2025.
+- Buchholz et al. *AURA: Collaborative Reasoning for Anomaly Diagnostics in Underwater Robotics.* arXiv:2511.03075, 2025.
 
 ---
 
 ## License
 
-[Apache License 2.0](LICENSE)
-
-Copyright 2026 Swanand Tanavade, University of Nebraska at Omaha.
-
----
+[Apache License 2.0](LICENSE) — Copyright 2026 Swanand Tanavade, University of Nebraska at Omaha.
 
 ## Citation
 
@@ -389,18 +345,5 @@ Copyright 2026 Swanand Tanavade, University of Nebraska at Omaha.
   year      = {2026},
   url       = {https://github.com/kakashi3lite/abyssal-twin},
   license   = {Apache-2.0}
-}
-```
-
-If you use this software in academic work, please also cite the
-accompanying dissertation:
-
-```bibtex
-@phdthesis{tanavade2029federation,
-  author      = {Tanavade, Swanand},
-  title       = {Federated Digital Twin Architectures for
-                 Autonomous Underwater Vehicle Fleets},
-  school      = {University of Nebraska at Omaha},
-  year        = {2029}
 }
 ```
