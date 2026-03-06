@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
-  RUST_VERSION: "1.75"
+  RUST_VERSION: "stable"
 
 jobs:
   # ─── Lint & Type Check ────────────────────────────────────────────────────
@@ -66,7 +66,11 @@ jobs:
           cargo clippy \
             --manifest-path src/iort_dt_federation/Cargo.toml \
             -- -D warnings
-        continue-on-error: true
+
+      - name: Cargo test
+        run: |
+          cargo test \
+            --manifest-path src/iort_dt_federation/Cargo.toml
 
       - name: Build release
         run: |
