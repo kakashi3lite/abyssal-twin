@@ -1,0 +1,101 @@
+<!--
+  IoRT-DT DDS-Security Governance File
+  RQ4: Adapted for acoustic channel constraints (9600 baud, high latency)
+
+  Design decisions:
+  1. ECDSA P-256 instead of RSA-2048: smaller keys (32 bytes vs 256 bytes)
+     → 87.5% reduction in certificate size for acoustic transmission
+  2. Session resumption: 24-hour tickets to survive acoustic link cycles
+  3. Disabled liveliness protection: heartbeats too expensive on acoustic
+  4. AES-128-GCM for payload encryption: faster than AES-256 (<15% overhead target)
+  5. Disable discovery traffic protection when operating cost > security gain
+     on bandwidth-starved links
+
+  Reference: Deng et al. (2022) ACM CCS vulnerabilities V1-V3,
+  extended to acoustic domain (RQ4 novel contribution).
+
+  Threat model: docs/security/threat_model.md (STRIDE analysis)
+-->
+
+<?xml version="1.0" encoding="UTF-8"?>
+<dds xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:noNamespaceSchemaLocation="http://www.omg.org/spec/DDS-Security/20170901/omg_shared_ca_governance.xsd">
+
+  <domain_access_rules>
+    <domain_rule>
+      <!-- Domain 42: IoRT-DT acoustic communication domain -->
+      <domains>
+        <id>42</id>
+      </domains>
+
+      <!--
+        Discovery protection: SIGN (not ENCRYPT)
+        Rationale: Discovery traffic is small but frequent.
+        Signing catches spoofing (Deng V2) with minimal overhead.
+        Full encryption of discovery would consume ~40% of acoustic bandwidth.
+      -->
+      <allow_unauthenticated_participants>false</allow_unauthenticated_participants>
+      <enable_join_access_control>true</enable_join_access_control>
+
+      <discovery_protection_kind>SIGN</discovery_protection_kind>
+      <liveliness_protection_kind>NONE</liveliness_protection_kind>
+      <!-- NONE: Heartbeats at 1 Hz would consume 10% of acoustic bandwidth -->
+
+      <rtps_protection_kind>SIGN</rtps_protection_kind>
+
+      <topic_access_rules>
+        <!-- DT State vectors: encrypt (contains mission-critical position data) -->
+        <topic_rule>
+          <topic_expression>iort/dt/*/state</topic_expression>
+          <enable_discovery_protection>true</enable_discovery_protection>
+          <enable_read_access_control>true</enable_read_access_control>
+          <enable_write_access_control>true</enable_write_access_control>
+          <metadata_protection_kind>SIGN</metadata_protection_kind>
+          <data_protection_kind>ENCRYPT</data_protection_kind>
+          <!-- AES-128-GCM: 12-byte nonce + 16-byte tag = 28 bytes overhead
+               On 42-byte state vector: 28/42 = 67% overhead — acceptable for this topic -->
+        </topic_rule>
+
+        <!-- Anomaly alerts: encrypt + sign (high-consequence messages) -->
+        <topic_rule>
+          <topic_expression>iort/dt/*/anomaly</topic_expression>
+          <enable_discovery_protection>true</enable_discovery_protection>
+          <enable_read_access_control>true</enable_read_access_control>
+          <enable_write_access_control>true</enable_write_access_control>
+          <metadata_protection_kind>SIGN_WITH_ORIGIN_AUTHENTICATION</metadata_protection_kind>
+          <data_protection_kind>ENCRYPT_WITH_ORIGIN_AUTHENTICATION</data_protection_kind>
+        </topic_rule>
+
+        <!-- Federation gossip: sign only (efficiency > confidentiality for Merkle hashes) -->
+        <topic_rule>
+          <topic_expression>iort/federation/*</topic_expression>
+          <enable_discovery_protection>true</enable_discovery_protection>
+          <enable_read_access_control>false</enable_read_access_control>
+          <enable_write_access_control>true</enable_write_access_control>
+          <metadata_protection_kind>SIGN</metadata_protection_kind>
+          <data_protection_kind>SIGN</data_protection_kind>
+        </topic_rule>
+
+        <!-- Fault injection (simulation only — not in production): no protection -->
+        <topic_rule>
+          <topic_expression>iort/fault_injection</topic_expression>
+          <enable_discovery_protection>false</enable_discovery_protection>
+          <enable_read_access_control>false</enable_read_access_control>
+          <enable_write_access_control>false</enable_write_access_control>
+          <metadata_protection_kind>NONE</metadata_protection_kind>
+          <data_protection_kind>NONE</data_protection_kind>
+        </topic_rule>
+
+        <!-- Default: sign all other topics -->
+        <topic_rule>
+          <topic_expression>*</topic_expression>
+          <enable_discovery_protection>true</enable_discovery_protection>
+          <enable_read_access_control>false</enable_read_access_control>
+          <enable_write_access_control>false</enable_write_access_control>
+          <metadata_protection_kind>SIGN</metadata_protection_kind>
+          <data_protection_kind>NONE</data_protection_kind>
+        </topic_rule>
+      </topic_access_rules>
+    </domain_rule>
+  </domain_access_rules>
+</dds>

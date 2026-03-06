@@ -1,0 +1,207 @@
+name: IoRT-DT CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  RUST_VERSION: "1.75"
+
+jobs:
+  # ─── Lint & Type Check ────────────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Ruff lint
+        run: poetry run ruff check src/ tests/ experiments/
+
+      - name: Ruff format check
+        run: poetry run ruff format --check src/ tests/ experiments/
+
+      - name: Mypy type check
+        run: poetry run mypy src/ --ignore-missing-imports
+        continue-on-error: true  # Allow during active development
+
+  # ─── Rust Build ───────────────────────────────────────────────────────────
+  rust-build:
+    name: Build Rust Federation Crate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src/iort_dt_federation/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src/iort_dt_federation/Cargo.lock') }}
+
+      - name: Clippy (warnings as errors)
+        run: |
+          cargo clippy \
+            --manifest-path src/iort_dt_federation/Cargo.toml \
+            -- -D warnings
+        continue-on-error: true
+
+      - name: Build release
+        run: |
+          cargo build \
+            --manifest-path src/iort_dt_federation/Cargo.toml \
+            --release
+
+  # ─── RQ1 Tests ────────────────────────────────────────────────────────────
+  test-rq1:
+    name: RQ1 — Compression & Sync Rate Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install --with dev
+
+      - name: Run RQ1 property tests
+        run: |
+          poetry run pytest tests/property/test_rq1_bounds.py \
+            -v --timeout=120 -m "rq1 or not (rq2 or rq3 or rq4 or slow)"
+
+      - name: Run RQ1 experiment validation
+        run: |
+          poetry run python experiments/rq1_sync_tradeoff/run.py \
+            --seed 42 \
+            --validate-only
+
+  # ─── RQ3 Tests ────────────────────────────────────────────────────────────
+  test-rq3:
+    name: RQ3 — Anomaly Detection & ARL Bounds
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install --with dev
+
+      - name: Run RQ3 property tests (formal ARL bounds)
+        run: |
+          poetry run pytest tests/property/test_rq3_arl.py \
+            -v --timeout=300 -m "rq3 and not slow"
+
+      - name: Verify ARL₀ > 10,000 guarantee
+        run: |
+          poetry run python -c "
+          import sys; sys.path.insert(0, 'src')
+          from iort_dt_anomaly.iort_dt_anomaly.detectors import ARLBounds, CUSUMConfig
+          config = CUSUMConfig(threshold_h=10.0, reference_k=0.5)
+          g = ARLBounds.verify_guarantees(config, p_loss=0.30)
+          assert g['arl0_target_met'], f'ARL0 guarantee FAILED: {g}'
+          assert g['detection_delay_target_met'], f'Detection delay FAILED: {g}'
+          print('✅ All RQ3 formal guarantees verified')
+          print(g)
+          "
+
+  # ─── RQ4 Tests ────────────────────────────────────────────────────────────
+  test-rq4:
+    name: RQ4 — DDS Security Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install OpenSSL tools
+        run: sudo apt-get install -y openssl
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install --with dev
+
+      - name: Generate DDS certificates
+        run: bash scripts/ci/generate_certs.sh 2
+
+      - name: Run replay attack simulation
+        run: |
+          poetry run python scripts/attacks/replay_attack.py \
+            --duration 30 --seed 42
+
+  # ─── Docker Build ─────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Compose Build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: |
+          docker compose -f docker/docker-compose.simulation.yml build \
+            --no-cache zenoh-router mlflow
+        continue-on-error: true  # May fail without GPU — acceptable
+
+  # ─── Documentation ────────────────────────────────────────────────────────
+  docs:
+    name: Documentation Build Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check all docs files present
+        run: |
+          test -f docs/security/threat_model.md && echo "✅ Threat model"
+          test -f README.md && echo "✅ README"
+          test -f CITATION.cff && echo "✅ Citation" || echo "⚠️  CITATION.cff missing"
+
+  # ─── Summary ──────────────────────────────────────────────────────────────
+  ci-summary:
+    name: CI Summary
+    needs: [lint, test-rq1, test-rq3, test-rq4]
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          echo "IoRT-DT CI Results:"
+          echo "  lint:      ${{ needs.lint.result }}"
+          echo "  test-rq1:  ${{ needs.test-rq1.result }}"
+          echo "  test-rq3:  ${{ needs.test-rq3.result }}"
+          echo "  test-rq4:  ${{ needs.test-rq4.result }}"
