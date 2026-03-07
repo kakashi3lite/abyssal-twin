@@ -329,7 +329,7 @@ class DashboardManager {
             <div class="spinner"></div>
             ${this.state.isDemoMode ? 'Initializing demo fleet...' : 'Loading fleet data...'}
           </div>
-          <div class="auv-list" id="fleet-content" style="display: none;"></div>
+          <div class="fleet-grid" id="fleet-content" style="display: none;"></div>
         </div>
       </div>
     `;
@@ -470,17 +470,39 @@ class DashboardManager {
     
     if (loading) loading.style.display = 'none';
     if (content) {
-      content.style.display = 'grid';
+      content.style.display = '';  // let CSS fleet-grid class control display
       content.innerHTML = fleet.vehicles.map(v => this.createAUVCard(v)).join('');
     }
   }
   
   private createAUVCard(vehicle: Vehicle): string {
     const state = vehicle.latestState;
-    const statusColor = vehicle.status === 'online' ? 'var(--accent-success)' : 
-                       vehicle.status === 'partitioned' ? 'var(--accent-warning)' : 
+    const statusColor = vehicle.status === 'online' ? 'var(--accent-success)' :
+                       vehicle.status === 'partitioned' ? 'var(--accent-warning)' :
                        'var(--accent-danger)';
-    
+
+    // Battery colour thresholds
+    const bat = state?.batteryPct ?? state?.healthScore ?? 0;
+    const batColor = bat > 50 ? 'var(--accent-success)' : bat > 20 ? 'var(--accent-warning)' : 'var(--accent-danger)';
+
+    // Depth: format with thousands separator (e.g. "3,042.5")
+    const depthDisplay = state?.depthM !== undefined
+      ? state.depthM.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+      : '--';
+
+    // Derived fallbacks: if new fields absent, compute from raw z / yaw
+    const pressureDisplay = state?.pressureBar !== undefined
+      ? state.pressureBar.toFixed(1)
+      : (state?.z !== undefined ? Math.abs(state.z / 10).toFixed(1) : '--');
+
+    const headingDisplay = state?.heading !== undefined
+      ? state.heading.toFixed(1)
+      : (state?.yaw !== undefined ? (((state.yaw * 180 / Math.PI) + 360) % 360).toFixed(1) : '--');
+
+    const batDisplay = state?.batteryPct !== undefined
+      ? state.batteryPct.toFixed(1)
+      : (state?.healthScore?.toFixed(0) ?? '--');
+
     return `
       <div class="auv-card ${vehicle.status}" data-auv-id="${vehicle.id}">
         <div class="auv-header">
@@ -489,24 +511,32 @@ class DashboardManager {
             ${vehicle.status === 'online' ? '🟢' : vehicle.status === 'partitioned' ? '🟡' : '🔴'}
           </span>
         </div>
-        <div class="auv-details">
-          <div class="auv-position">
-            <span class="coord">X: ${state?.x.toFixed(1) ?? '--'}</span>
-            <span class="coord">Y: ${state?.y.toFixed(1) ?? '--'}</span>
-            <span class="coord">Z: ${state?.z.toFixed(1) ?? '--'}m</span>
+        <div class="auv-telemetry">
+          <div class="telem-row">
+            <span class="telem-label">Depth</span>
+            <span class="telem-value">${depthDisplay} m</span>
           </div>
-          <div class="auv-health">
-            <div class="health-bar">
-              <div class="health-fill" style="width: ${state?.healthScore ?? 0}%; background: ${statusColor}"></div>
-            </div>
-            <span class="health-text">${state?.healthScore ?? '--'}%</span>
+          <div class="telem-row">
+            <span class="telem-label">Pressure</span>
+            <span class="telem-value">${pressureDisplay} bar</span>
           </div>
-          ${state?.anomalyDetected ? `
-            <div class="auv-alert">
-              ⚠️ Anomaly detected
+          <div class="telem-row">
+            <span class="telem-label">Heading</span>
+            <span class="telem-value">${headingDisplay}°</span>
+          </div>
+          <div class="telem-row telem-battery">
+            <span class="telem-label">Battery</span>
+            <div class="battery-bar">
+              <div class="battery-fill" style="width: ${Math.min(100, bat).toFixed(1)}%; background: ${batColor}"></div>
             </div>
-          ` : ''}
+            <span class="telem-value">${batDisplay}%</span>
+          </div>
         </div>
+        ${state?.anomalyDetected ? `
+          <div class="auv-alert">
+            ⚠️ Anomaly detected
+          </div>
+        ` : ''}
       </div>
     `;
   }

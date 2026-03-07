@@ -26,12 +26,12 @@ export interface DemoDataStore {
   events: SystemEvent[];
 }
 
-// Mission profiles for realistic AUV behavior
+// Mission profiles for realistic AUV behavior — abyssal survey at ~3 000 m
 const MISSION_PROFILES = [
-  { id: 1, name: 'AUV-01 Nautilus', type: 'auv' as const, baseX: 100, baseY: 100, depth: 100 },
-  { id: 2, name: 'AUV-02 Poseidon', type: 'auv' as const, baseX: 300, baseY: 200, depth: 150 },
-  { id: 3, name: 'USV-01 Triton', type: 'usv' as const, baseX: 500, baseY: 300, depth: 0 },
-  { id: 4, name: 'AUV-03 Kraken', type: 'auv' as const, baseX: 700, baseY: 400, depth: 200 },
+  { id: 1, name: 'AUV-01 Nautilus', type: 'auv' as const, baseX: 100, baseY: 100, depth: 3000 },
+  { id: 2, name: 'AUV-02 Poseidon', type: 'auv' as const, baseX: 300, baseY: 200, depth: 3010 },
+  { id: 3, name: 'USV-01 Triton',   type: 'usv' as const, baseX: 500, baseY: 300, depth: 5 },
+  { id: 4, name: 'AUV-03 Kraken',   type: 'auv' as const, baseX: 700, baseY: 400, depth: 3025 },
 ];
 
 /**
@@ -62,6 +62,7 @@ export class DemoDataEngine {
         vy: 0,
         yaw: 0,
         healthScore: 98,
+        batteryPct: 100,
         missionTime: 0,
         hasAnomaly: false,
         anomalyType: null,
@@ -127,13 +128,23 @@ export class DemoDataEngine {
       // Add noise
       state.x += (Math.random() - 0.5) * 2;
       state.y += (Math.random() - 0.5) * 2;
-      state.z = -state.depth + Math.sin(state.missionTime * 0.1) * 2;
+
+      // Abyssal depth: oscillate ±25 m around base depth
+      state.z = -(state.depth + Math.sin(state.missionTime * 0.05) * 25 + Math.random() * 5);
 
       // Calculate yaw
       state.yaw = Math.atan2(state.vy, state.vx);
 
+      // Derived telemetry
+      const depthM       = Math.abs(state.z);
+      const pressureBar  = Math.round(depthM / 10 * 10) / 10;
+      const heading      = ((state.yaw * 180 / Math.PI) + 360) % 360;
+
+      // Battery drain: ~0.007 % per 2-second tick ≈ 8-hour mission life
+      state.batteryPct = Math.max(0, state.batteryPct - 0.007);
+
       // Position variance based on depth
-      const positionVariance = 0.5 + (Math.abs(state.z) / 200);
+      const positionVariance = 0.5 + (depthM / 3000);
 
       // Health fluctuation
       state.healthScore = Math.max(85, Math.min(100, state.healthScore + (Math.random() - 0.5)));
@@ -149,8 +160,10 @@ export class DemoDataEngine {
       } else if (Math.random() < DEMO_CONFIG.ANOMALY_CHANCE) {
         const anomalies = [
           { type: 'High Position Variance', severity: 'warning' as const },
-          { type: 'Communication Delay', severity: 'warning' as const },
-          { type: 'Depth Exceeded', severity: 'critical' as const },
+          { type: 'Communication Delay',    severity: 'warning' as const },
+          { type: 'Pressure Spike',         severity: 'critical' as const },
+          { type: 'Battery Low',            severity: 'warning' as const },
+          { type: 'Thruster Fault',         severity: 'warning' as const },
         ];
         const anomaly = anomalies[Math.floor(Math.random() * anomalies.length)];
         state.hasAnomaly = true;
@@ -192,6 +205,11 @@ export class DemoDataEngine {
           positionVariance: Math.round(positionVariance * 100) / 100,
           anomalyDetected: state.hasAnomaly,
           healthScore: Math.round(state.healthScore),
+          // Live telemetry — abyssal sensor readings
+          depthM:      Math.round(depthM * 10) / 10,
+          batteryPct:  Math.round(state.batteryPct * 10) / 10,
+          pressureBar: pressureBar,
+          heading:     Math.round(heading * 10) / 10,
         },
       });
     });

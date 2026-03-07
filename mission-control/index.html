@@ -283,6 +283,88 @@
       color: var(--text-secondary);
     }
     
+    /* AUV Cards (dynamic fleet widget) */
+    .fleet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.875rem;
+    }
+
+    .auv-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.875rem;
+      transition: border-color 0.2s;
+    }
+
+    .auv-card.online  { border-left: 3px solid var(--accent-success); }
+    .auv-card.partitioned { border-left: 3px solid var(--accent-warning); }
+    .auv-card.offline { border-left: 3px solid var(--accent-danger); }
+
+    .auv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.625rem;
+    }
+
+    .auv-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-primary);
+    }
+
+    .auv-telemetry {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .telem-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .telem-label {
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .telem-value {
+      font-family: var(--font-mono);
+      color: var(--accent-primary);
+      font-size: 0.8rem;
+    }
+
+    .telem-battery {
+      gap: 0.5rem;
+    }
+
+    .battery-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--bg-primary);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 0 0.4rem;
+    }
+
+    .battery-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease, background 0.3s;
+    }
+
+    .auv-alert {
+      margin-top: 0.5rem;
+      font-size: 0.78rem;
+      color: var(--accent-warning);
+      font-weight: 500;
+    }
+
     /* Charts */
     .chart-container {
       position: relative;

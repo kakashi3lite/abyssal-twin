@@ -26,6 +26,11 @@ export interface StateVector {
   positionVariance: number;
   anomalyDetected: boolean;
   healthScore: number;
+  // Live telemetry fields
+  depthM?: number;      // Depth in metres, positive (e.g. 3042.5)
+  batteryPct?: number;  // 0–100 %
+  pressureBar?: number; // ~300 bar at abyssal depth (1 bar ≈ 10 m seawater)
+  heading?: number;     // 0–360 °, compass bearing
 }
 
 export interface ResearchMetrics {

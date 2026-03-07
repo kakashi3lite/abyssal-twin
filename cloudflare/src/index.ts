@@ -15,6 +15,7 @@ import { metricsExportRoutes } from "./routes/metrics-export";
 import { requireAuth } from "./middleware/auth";
 import { dataResidency } from "./middleware/data-residency";
 import { metricsMiddleware, getMetrics } from "./middleware/metrics";
+import { SimulationEngine } from "./simulation-engine";
 
 // Re-export the Durable Object class so Cloudflare can bind it
 export { FederationCoordinator } from "./federation-coordinator";
@@ -119,6 +120,45 @@ app.get("/api/v1/fleet/stream", async (c) => {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+    },
+  });
+});
+
+// ─── Simulation Mode SSE ─────────────────────────────────────────────────────
+// When no real AUVs are connected, this endpoint streams realistic abyssal
+// telemetry (depth 3 000–3 050 m, pressure ~300 bar, draining battery).
+// The Mission Control frontend's connectSSE() can point here for demo/staging.
+
+app.get("/api/v1/simulate", (c) => {
+  const engine = new SimulationEngine();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  const send = async () => {
+    try {
+      const payload = engine.next();
+      await writer.write(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+    } catch {
+      // writer already closed
+    }
+  };
+
+  // Send first frame immediately so the client doesn't wait 2 s
+  void send();
+  const id = setInterval(() => void send(), 2000);
+
+  c.req.raw.signal.addEventListener("abort", () => {
+    clearInterval(id);
+    writer.close().catch(() => {});
+  });
+
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
     },
   });
 });
