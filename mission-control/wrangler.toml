@@ -1,0 +1,9 @@
+name = "abyssal-mission-control"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production]
+name = "abyssal-mission-control"
+
+[env.staging]
+name = "abyssal-mission-control-staging"

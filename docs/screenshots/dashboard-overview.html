@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Overview - Abyssal Twin</title>
+<style>
+body { font-family: system-ui, sans-serif; background: #0a0e27; color: #e0e6ed; padding: 40px; }
+.snapshot { background: #141b2d; border-radius: 12px; padding: 30px; margin: 20px 0; border: 1px solid #2a3a4f; }
+h2 { color: #64d2ff; margin-top: 0; }
+.widget-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.widget { background: #1a2332; padding: 20px; border-radius: 8px; border: 1px solid #2a3a4f; }
+.metric { display: flex; justify-content: space-between; margin: 10px 0; }
+.status-healthy { color: #4ade80; }
+.status-warning { color: #fbbf24; }
+.auv-card { background: #0a0e27; padding: 15px; border-radius: 8px; text-align: center; }
+</style>
+</head>
+<body>
+<h1>🌊 Dashboard Overview Snapshot</h1>
+<div class="snapshot">
+<h2>Live Fleet Status</h2>
+<div class="widget-grid">
+<div class="widget">
+<h3>System Health</h3>
+<div class="metric"><span>Cloudflare Workers</span><span class="status-healthy">● HEALTHY</span></div>
+<div class="metric"><span>D1 Database</span><span class="status-healthy">● CONNECTED</span></div>
+<div class="metric"><span>R2 Storage</span><span class="status-healthy">● AVAILABLE</span></div>
+<div class="metric"><span>WebSocket Gateway</span><span class="status-healthy">● 4 CONNECTIONS</span></div>
+</div>
+<div class="widget">
+<h3>Fleet Coherence</h3>
+<div style="font-size: 48px; text-align: center; color: #4ade80;">98.7%</div>
+<div style="text-align: center; color: #8b9dc3;">Target: >95% ✓</div>
+</div>
+<div class="widget">
+<h3>Active Vehicles</h3>
+<div style="font-size: 48px; text-align: center; color: #64d2ff;">3/3</div>
+<div style="text-align: center; color: #8b9dc3;">All systems operational</div>
+</div>
+</div>
+</div>
+<div class="snapshot">
+<h2>AUV Fleet Status</h2>
+<div class="widget-grid">
+<div class="auv-card">
+<div style="font-size: 32px; color: #64d2ff;">AUV-1</div>
+<div style="color: #4ade80; margin-top: 10px;">● ONLINE</div>
+<div style="color: #5a7090; margin-top: 5px;">245ms latency</div>
+</div>
+<div class="auv-card">
+<div style="font-size: 32px; color: #64d2ff;">AUV-2</div>
+<div style="color: #4ade80; margin-top: 10px;">● ONLINE</div>
+<div style="color: #5a7090; margin-top: 5px;">267ms latency</div>
+</div>
+<div class="auv-card">
+<div style="font-size: 32px; color: #64d2ff;">AUV-3</div>
+<div style="color: #4ade80; margin-top: 10px;">● ONLINE</div>
+<div style="color: #5a7090; margin-top: 5px;">289ms latency</div>
+</div>
+</div>
+</div>
+</body>
+</html>
