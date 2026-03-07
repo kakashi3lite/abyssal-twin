@@ -1,0 +1,103 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mission-control/**'
+      - '.github/workflows/cloudflare-pages.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        type: choice
+        options:
+          - staging
+          - production
+        default: 'production'
+
+concurrency:
+  group: cloudflare-pages-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  build:
+    name: Build for Cloudflare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mission-control/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mission-control
+        run: npm ci
+
+      - name: Build for Cloudflare
+        working-directory: mission-control
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_API_BASE: ${{ github.event.inputs.environment == 'production' && 'https://api.abyssal-twin.dev' || 'https://staging.abyssal-twin.dev' }}
+          VITE_WS_URL: ${{ github.event.inputs.environment == 'production' && 'wss://api.abyssal-twin.dev/ws/live' || 'wss://staging.abyssal-twin.dev/ws/live' }}
+          VITE_SSE_URL: ${{ github.event.inputs.environment == 'production' && 'https://api.abyssal-twin.dev/api/v1/fleet/stream' || 'https://staging.abyssal-twin.dev/api/v1/fleet/stream' }}
+
+      - name: Verify build
+        working-directory: mission-control
+        run: |
+          ls -la dist/
+          test -f dist/index.html || (echo "❌ index.html missing" && exit 1)
+          echo "✅ Build verified"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-build
+          path: mission-control/dist
+
+  deploy:
+    name: Deploy to Cloudflare
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-build
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ github.event.inputs.environment == 'production' && 'abyssal-mission-control' || 'abyssal-mission-control-staging' }}
+          directory: dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment deployment URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const env = '${{ github.event.inputs.environment }}' || 'production';
+            const url = env === 'production' 
+              ? 'https://abyssal-mission-control.pages.dev'
+              : 'https://staging-abyssal-mission-control.pages.dev';
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `🚀 Cloudflare ${env} deployment: ${url}`
+            });

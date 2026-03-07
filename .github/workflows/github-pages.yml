@@ -14,11 +14,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: github-pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
+    name: Build for GitHub Pages
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,11 +36,24 @@ jobs:
         working-directory: mission-control
         run: npm ci
 
-      - name: Build
+      - name: Build for GitHub Pages
         working-directory: mission-control
         run: npm run build
         env:
           NODE_ENV: production
+          # GitHub Pages uses the same API endpoints
+          VITE_API_BASE: https://api.abyssal-twin.dev
+          VITE_WS_URL: wss://api.abyssal-twin.dev/ws/live
+          VITE_SSE_URL: https://api.abyssal-twin.dev/api/v1/fleet/stream
+
+      - name: Verify build
+        working-directory: mission-control
+        run: |
+          ls -la dist/
+          test -f dist/index.html || (echo "❌ index.html missing" && exit 1)
+          test -d dist/assets || (echo "❌ assets folder missing" && exit 1)
+          grep -q 'src="./assets/' dist/index.html || (echo "❌ Not using relative paths" && exit 1)
+          echo "✅ Build verified"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -50,6 +64,7 @@ jobs:
           path: mission-control/dist
 
   deploy:
+    name: Deploy to GitHub Pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

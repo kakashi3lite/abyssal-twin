@@ -1,63 +1,179 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Dashboard Overview - Abyssal Twin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abyssal Twin - Fleet Status Overview</title>
 <style>
-body { font-family: system-ui, sans-serif; background: #0a0e27; color: #e0e6ed; padding: 40px; }
-.snapshot { background: #141b2d; border-radius: 12px; padding: 30px; margin: 20px 0; border: 1px solid #2a3a4f; }
-h2 { color: #64d2ff; margin-top: 0; }
-.widget-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-.widget { background: #1a2332; padding: 20px; border-radius: 8px; border: 1px solid #2a3a4f; }
-.metric { display: flex; justify-content: space-between; margin: 10px 0; }
-.status-healthy { color: #4ade80; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #0a0e27 0%, #1a2332 100%);
+  color: #e0e6ed;
+  padding: 40px 20px;
+  min-height: 100vh;
+}
+.container { max-width: 1000px; margin: 0 auto; }
+h1 {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #64d2ff, #4ade80);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 10px;
+}
+.subtitle { color: #8b9dc3; margin-bottom: 30px; }
+.card {
+  background: rgba(20, 27, 45, 0.9);
+  border-radius: 16px;
+  padding: 30px;
+  margin: 20px 0;
+  border: 1px solid rgba(100, 210, 255, 0.2);
+}
+h2 {
+  color: #64d2ff;
+  margin-bottom: 20px;
+  font-size: 1.2rem;
+}
+.widget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.widget {
+  background: #1a2332;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid #2a3a4f;
+}
+h3 {
+  color: #64d2ff;
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #2a3a4f;
+}
+.metric:last-child { border-bottom: none; }
+.metric-label { color: #8b9dc3; font-size: 0.9rem; }
+.status-healthy { color: #4ade80; font-weight: 600; }
 .status-warning { color: #fbbf24; }
-.auv-card { background: #0a0e27; padding: 15px; border-radius: 8px; text-align: center; }
+.auv-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-top: 20px;
+}
+.auv-card {
+  background: #0a0e27;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #2a3a4f;
+}
+.auv-id { font-size: 1.8rem; color: #64d2ff; font-weight: 700; }
+.auv-status { color: #4ade80; margin-top: 8px; font-size: 0.9rem; }
+.auv-latency { color: #5a7090; margin-top: 5px; font-size: 0.8rem; }
+.footer {
+  text-align: center;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #2a3a4f;
+  color: #5a7090;
+  font-size: 0.9rem;
+}
+.back-link {
+  display: inline-block;
+  margin-top: 20px;
+  color: #64d2ff;
+  text-decoration: none;
+}
+.back-link:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
-<h1>🌊 Dashboard Overview Snapshot</h1>
-<div class="snapshot">
-<h2>Live Fleet Status</h2>
-<div class="widget-grid">
-<div class="widget">
-<h3>System Health</h3>
-<div class="metric"><span>Cloudflare Workers</span><span class="status-healthy">● HEALTHY</span></div>
-<div class="metric"><span>D1 Database</span><span class="status-healthy">● CONNECTED</span></div>
-<div class="metric"><span>R2 Storage</span><span class="status-healthy">● AVAILABLE</span></div>
-<div class="metric"><span>WebSocket Gateway</span><span class="status-healthy">● 4 CONNECTIONS</span></div>
-</div>
-<div class="widget">
-<h3>Fleet Coherence</h3>
-<div style="font-size: 48px; text-align: center; color: #4ade80;">98.7%</div>
-<div style="text-align: center; color: #8b9dc3;">Target: >95% ✓</div>
-</div>
-<div class="widget">
-<h3>Active Vehicles</h3>
-<div style="font-size: 48px; text-align: center; color: #64d2ff;">3/3</div>
-<div style="text-align: center; color: #8b9dc3;">All systems operational</div>
-</div>
-</div>
-</div>
-<div class="snapshot">
-<h2>AUV Fleet Status</h2>
-<div class="widget-grid">
-<div class="auv-card">
-<div style="font-size: 32px; color: #64d2ff;">AUV-1</div>
-<div style="color: #4ade80; margin-top: 10px;">● ONLINE</div>
-<div style="color: #5a7090; margin-top: 5px;">245ms latency</div>
-</div>
-<div class="auv-card">
-<div style="font-size: 32px; color: #64d2ff;">AUV-2</div>
-<div style="color: #4ade80; margin-top: 10px;">● ONLINE</div>
-<div style="color: #5a7090; margin-top: 5px;">267ms latency</div>
-</div>
-<div class="auv-card">
-<div style="font-size: 32px; color: #64d2ff;">AUV-3</div>
-<div style="color: #4ade80; margin-top: 10px;">● ONLINE</div>
-<div style="color: #5a7090; margin-top: 5px;">289ms latency</div>
-</div>
-</div>
+<div class="container">
+  <h1>🌊 Dashboard Overview</h1>
+  <p class="subtitle">Real-time fleet operations snapshot</p>
+  
+  <div class="card">
+    <h2>System Health</h2>
+    <div class="widget-grid">
+      <div class="widget">
+        <h3>Cloudflare Workers</h3>
+        <div class="metric">
+          <span class="metric-label">Status</span>
+          <span class="status-healthy">● HEALTHY</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Latency</span>
+          <span>45ms</span>
+        </div>
+      </div>
+      <div class="widget">
+        <h3>D1 Database</h3>
+        <div class="metric">
+          <span class="metric-label">Status</span>
+          <span class="status-healthy">● CONNECTED</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Queries/sec</span>
+          <span>1,240</span>
+        </div>
+      </div>
+      <div class="widget">
+        <h3>R2 Storage</h3>
+        <div class="metric">
+          <span class="metric-label">Status</span>
+          <span class="status-healthy">● AVAILABLE</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Storage Used</span>
+          <span>2.4 GB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Fleet Status</h2>
+    <div class="metric">
+      <span class="metric-label">Fleet Coherence</span>
+      <span class="status-healthy">98.7%</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Active Vehicles</span>
+      <span>3/3 Online</span>
+    </div>
+    <div class="auv-grid">
+      <div class="auv-card">
+        <div class="auv-id">AUV-1</div>
+        <div class="auv-status">● ONLINE</div>
+        <div class="auv-latency">245ms latency</div>
+      </div>
+      <div class="auv-card">
+        <div class="auv-id">AUV-2</div>
+        <div class="auv-status">● ONLINE</div>
+        <div class="auv-latency">267ms latency</div>
+      </div>
+      <div class="auv-card">
+        <div class="auv-id">AUV-3</div>
+        <div class="auv-status">● ONLINE</div>
+        <div class="auv-latency">289ms latency</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <p>Abyssal Twin Dashboard Snapshot</p>
+    <p>Generated: 2026-03-06</p>
+    <a href="index.html" class="back-link">← Back to Gallery</a>
+  </div>
 </div>
 </body>
 </html>

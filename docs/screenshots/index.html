@@ -52,6 +52,7 @@ h1 {
   height: 400px;
   overflow: hidden;
   position: relative;
+  background: #0a0e27;
 }
 .card-body iframe {
   width: 100%;
@@ -93,12 +94,78 @@ h1 {
   font-size: 0.9rem;
   line-height: 1.5;
 }
+.deployments {
+  background: rgba(20, 27, 45, 0.6);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 30px 0;
+  border: 1px solid rgba(100, 210, 255, 0.2);
+}
+.deployments h3 {
+  color: #64d2ff;
+  margin-bottom: 15px;
+}
+.deploy-link {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: rgba(100, 210, 255, 0.1);
+  border-radius: 8px;
+  margin: 10px 0;
+  color: #e0e6ed;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.deploy-link:hover {
+  background: rgba(100, 210, 255, 0.2);
+}
+.deploy-link .icon {
+  font-size: 1.5rem;
+  margin-right: 12px;
+}
+.deploy-link .url {
+  color: #64d2ff;
+  font-family: monospace;
+  margin-left: auto;
+}
+.footer {
+  text-align: center;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid #2a3a4f;
+  color: #5a7090;
+}
+.back-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: #64d2ff;
+  text-decoration: none;
+}
+.back-link:hover { text-decoration: underline; }
+@media (max-width: 768px) {
+  .gallery { grid-template-columns: 1fr; }
+  h1 { font-size: 1.8rem; }
+}
 </style>
 </head>
 <body>
 <div class="container">
   <h1>🌊 Abyssal Twin Dashboard Gallery</h1>
-  <p class="subtitle">Live dashboard snapshots and feature previews</p>
+  <p class="subtitle">Live dashboard previews and feature highlights</p>
+  
+  <div class="deployments">
+    <h3>🌐 Live Deployments</h3>
+    <a href="https://kakashi3lite.github.io/abyssal-twin/" class="deploy-link" target="_blank">
+      <span class="icon">🚀</span>
+      <span>GitHub Pages (Primary)</span>
+      <span class="url">kakashi3lite.github.io/abyssal-twin</span>
+    </a>
+    <a href="https://abyssal-mission-control.pages.dev/" class="deploy-link" target="_blank">
+      <span class="icon">⚡</span>
+      <span>Cloudflare Pages (Mirror)</span>
+      <span class="url">abyssal-mission-control.pages.dev</span>
+    </a>
+  </div>
   
   <div class="gallery">
     <div class="card">
@@ -139,6 +206,12 @@ h1 {
       <h3>🎨 Customizable</h3>
       <p>6 widget types, theme switching, user preferences</p>
     </div>
+  </div>
+  
+  <div class="footer">
+    <p>🌊 Abyssal Twin — IoRT-DT Federated Digital Twin Platform</p>
+    <p>Author: kakashi3lite • 2026</p>
+    <a href="../../README.md" class="back-link">← Back to Main README</a>
   </div>
 </div>
 </body>
