@@ -21,15 +21,20 @@ fleetRoutes.get("/status", async (c) => {
 
   const db = c.env.FLEET_DB;
 
-  // Get all vehicles with their latest state
+  // Get all vehicles with their latest state.
+  // Derived-table join avoids the N+1 correlated subquery pattern.
   const vehicles = await db.prepare(`
     SELECT v.id, v.name, v.type, v.status, v.last_seen,
            sv.pose_x, sv.pose_y, sv.pose_z, sv.yaw,
            sv.position_variance, sv.health_score, sv.mission_phase,
            sv.anomaly_detected
     FROM vehicles v
-    LEFT JOIN state_vectors sv ON sv.vehicle_id = v.id
-      AND sv.id = (SELECT MAX(id) FROM state_vectors WHERE vehicle_id = v.id)
+    LEFT JOIN (
+      SELECT vehicle_id, MAX(id) AS max_id
+      FROM state_vectors
+      GROUP BY vehicle_id
+    ) latest ON latest.vehicle_id = v.id
+    LEFT JOIN state_vectors sv ON sv.id = latest.max_id
     ORDER BY v.id
   `).all();
 

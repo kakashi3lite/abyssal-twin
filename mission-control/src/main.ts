@@ -45,7 +45,7 @@ class DashboardManager {
     
     this.init();
   }
-  
+
   private init() {
     this.loadUserPreferences();
     this.detectMode();
@@ -53,19 +53,47 @@ class DashboardManager {
     this.setupRealtimeConnection();
     this.startAutoRefresh();
     this.updateTimestamp();
-    
-    // Global functions for HTML onclick handlers
-    (window as any).refreshAll = () => this.refreshAll();
-    (window as any).toggleSettings = () => this.toggleSettings();
-    (window as any).toggleTheme = () => this.toggleTheme();
-    (window as any).addWidget = () => this.addWidget();
-    (window as any).openExport = () => this.openExport();
-    (window as any).closeExport = () => this.closeExport();
-    (window as any).exportData = () => this.exportData();
-    (window as any).saveSettings = () => this.saveSettings();
-    (window as any).setLayout = (layout: string) => this.setLayout(layout);
-    (window as any).updateTimeRange = () => this.updateTimeRange();
-    (window as any).removeWidget = (widgetId: string) => this.removeWidget(widgetId);
+    this.bindEventListeners();
+  }
+
+  private bindEventListeners() {
+    // Toolbar buttons
+    document.getElementById('btn-refresh')?.addEventListener('click', () => this.refreshAll());
+    document.getElementById('btn-settings')?.addEventListener('click', () => this.toggleSettings());
+    document.getElementById('btn-export')?.addEventListener('click', () => this.openExport());
+    document.getElementById('btn-theme')?.addEventListener('click', () => this.toggleTheme());
+    document.getElementById('btn-add-widget')?.addEventListener('click', () => this.addWidget());
+    document.getElementById('timeRange')?.addEventListener('change', () => this.updateTimeRange());
+
+    // Settings panel
+    document.getElementById('btn-close-settings')?.addEventListener('click', () => this.toggleSettings());
+    document.getElementById('btn-save-settings')?.addEventListener('click', () => this.saveSettings());
+
+    // Layout options (data-layout attribute)
+    document.querySelectorAll<HTMLElement>('[data-layout]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const layout = el.dataset['layout'];
+        if (layout) this.setLayout(layout);
+      });
+    });
+
+    // Export modal
+    document.getElementById('btn-close-export')?.addEventListener('click', () => this.closeExport());
+    document.getElementById('btn-do-export')?.addEventListener('click', () => this.exportData());
+
+    // Event delegation for dynamically rendered widget controls (data-action)
+    document.getElementById('dashboard')?.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const action = target.dataset['action'];
+      if (action === 'remove') {
+        const widgetId = target.dataset['widgetId'];
+        if (widgetId) this.removeWidget(widgetId);
+      } else if (action === 'refresh') {
+        this.refreshAll();
+      } else if (action === 'export') {
+        this.openExport();
+      }
+    });
   }
 
   /**
@@ -320,8 +348,8 @@ class DashboardManager {
         <div class="widget-header">
           <span class="widget-title">🤖 Fleet Status</span>
           <div class="widget-controls">
-            <button onclick="refreshAll()" title="Refresh">🔄</button>
-            <button onclick="removeWidget('fleet')" title="Remove">✕</button>
+            <button data-action="refresh" title="Refresh">🔄</button>
+            <button data-action="remove" data-widget-id="fleet" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
@@ -341,8 +369,8 @@ class DashboardManager {
         <div class="widget-header">
           <span class="widget-title">📊 Research Metrics</span>
           <div class="widget-controls">
-            <button onclick="openExport()" title="Export">📥</button>
-            <button onclick="removeWidget('metrics')" title="Remove">✕</button>
+            <button data-action="export" title="Export">📥</button>
+            <button data-action="remove" data-widget-id="metrics" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
@@ -362,7 +390,7 @@ class DashboardManager {
         <div class="widget-header">
           <span class="widget-title">🗜️ RQ1: Compression</span>
           <div class="widget-controls">
-            <button onclick="removeWidget('compression')" title="Remove">✕</button>
+            <button data-action="remove" data-widget-id="compression" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
@@ -399,7 +427,7 @@ class DashboardManager {
         <div class="widget-header">
           <span class="widget-title">⚠️ RQ3: Anomalies</span>
           <div class="widget-controls">
-            <button onclick="removeWidget('anomaly')" title="Remove">✕</button>
+            <button data-action="remove" data-widget-id="anomaly" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
@@ -437,7 +465,7 @@ class DashboardManager {
               <option value="24h" selected>24 Hours</option>
               <option value="7d">7 Days</option>
             </select>
-            <button onclick="removeWidget('chart')" title="Remove">✕</button>
+            <button data-action="remove" data-widget-id="chart" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
@@ -453,7 +481,7 @@ class DashboardManager {
         <div class="widget-header">
           <span class="widget-title">📋 Event Log</span>
           <div class="widget-controls">
-            <button onclick="removeWidget('events')" title="Remove">✕</button>
+            <button data-action="remove" data-widget-id="events" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">

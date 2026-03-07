@@ -642,10 +642,10 @@
   </header>
   
   <div class="toolbar">
-    <button class="primary" onclick="refreshAll()">🔄 Refresh</button>
-    <button onclick="toggleSettings()">⚙️ Settings</button>
-    <button onclick="openExport()">📥 Export</button>
-    <select id="timeRange" onchange="updateTimeRange()">
+    <button class="primary" id="btn-refresh">🔄 Refresh</button>
+    <button id="btn-settings">⚙️ Settings</button>
+    <button id="btn-export">📥 Export</button>
+    <select id="timeRange">
       <option value="1h">Last Hour</option>
       <option value="6h">Last 6 Hours</option>
       <option value="24h" selected>Last 24 Hours</option>
@@ -655,8 +655,8 @@
       <option value="reef-expedition">Reef Expedition 2024</option>
       <option value="deep-dive">Deep Dive Mission</option>
     </select>
-    <button onclick="toggleTheme()">🌓 Theme</button>
-    <button onclick="addWidget()">➕ Add Widget</button>
+    <button id="btn-theme">🌓 Theme</button>
+    <button id="btn-add-widget">➕ Add Widget</button>
   </div>
   
   <main class="dashboard" id="dashboard">
@@ -667,26 +667,26 @@
   <aside class="settings-panel" id="settingsPanel">
     <div class="settings-header">
       <h3>Settings</h3>
-      <button onclick="toggleSettings()">✕</button>
+      <button id="btn-close-settings">✕</button>
     </div>
     <div class="settings-body">
       <div class="setting-group">
         <label class="setting-label">Dashboard Layout</label>
-        <div class="setting-option" onclick="setLayout('grid')">
+        <div class="setting-option" data-layout="grid">
           <input type="radio" name="layout" value="grid" checked> Grid View
         </div>
-        <div class="setting-option" onclick="setLayout('list')">
+        <div class="setting-option" data-layout="list">
           <input type="radio" name="layout" value="list"> List View
         </div>
       </div>
-      
+
       <div class="setting-group">
         <label class="setting-label">Auto-Refresh</label>
         <div class="setting-option">
           <input type="checkbox" id="autoRefresh" checked> Enable auto-refresh (5s)
         </div>
       </div>
-      
+
       <div class="setting-group">
         <label class="setting-label">Notifications</label>
         <div class="setting-option">
@@ -696,7 +696,7 @@
           <input type="checkbox" id="notifyOffline" checked> Vehicle offline
         </div>
       </div>
-      
+
       <div class="setting-group">
         <label class="setting-label">Data Export Format</label>
         <select class="form-select" id="defaultExportFormat">
@@ -705,8 +705,8 @@
           <option value="png">PNG (Charts)</option>
         </select>
       </div>
-      
-      <button class="primary" onclick="saveSettings()" style="width: 100%;">Save Settings</button>
+
+      <button class="primary" id="btn-save-settings" style="width: 100%;">Save Settings</button>
     </div>
   </aside>
   
@@ -744,8 +744,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button onclick="closeExport()">Cancel</button>
-        <button class="primary" onclick="exportData()">Export</button>
+        <button id="btn-close-export">Cancel</button>
+        <button class="primary" id="btn-do-export">Export</button>
       </div>
     </div>
   </div>
