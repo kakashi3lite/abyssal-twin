@@ -1,48 +1,26 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { resolve } from 'path';
 
 export default defineConfig({
-  // Use relative paths for Cloudflare Pages compatibility
+  plugins: [react()],
   base: './',
-  
-  server: {
-    port: 3000,
-    proxy: {
-      '/api': {
-        target: 'https://staging.abyssal-twin.dev',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/ws': {
-        target: 'wss://staging.abyssal-twin.dev',
-        ws: true,
-        changeOrigin: true,
-        secure: false,
-      },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
     },
   },
-  
   build: {
     outDir: 'dist',
     sourcemap: true,
-    // Ensure assets use relative paths
-    assetsDir: 'assets',
     rollupOptions: {
-      output: {
-        // Prevent hash in filenames for easier debugging
-        entryFileNames: 'assets/[name]-[hash].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: (assetInfo) => {
-          const info = assetInfo.name.split('.');
-          const ext = info[info.length - 1];
-          if (/\.css$/i.test(assetInfo.name)) {
-            return 'assets/[name]-[hash][extname]';
-          }
-          return 'assets/[name]-[hash][extname]';
-        },
+      input: {
+        main: resolve(__dirname, 'index.html'),
       },
     },
   },
-  
-  // Ensure public files are copied
-  publicDir: 'public',
+  server: {
+    port: 3000,
+    host: true,
+  },
 });

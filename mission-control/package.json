@@ -1,7 +1,7 @@
 {
   "name": "abyssal-mission-control",
-  "version": "1.0.0",
-  "description": "Real-time AUV Fleet Dashboard - Market Ready Mission Control",
+  "version": "2.0.0",
+  "description": "Enterprise AUV Fleet Command Center - Asset Assurance Intelligence Platform",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -9,17 +9,30 @@
     "build:prod": "tsc && vite build --mode production",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler pages deploy dist",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint src --ext .ts,.tsx",
+    "test": "vitest",
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
     "chart.js": "^4.4.1",
     "chartjs-adapter-date-fns": "^3.0.0",
-    "date-fns": "^3.0.6"
+    "date-fns": "^3.0.6",
+    "mapbox-gl": "^3.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-map-gl": "^7.1.0"
   },
   "devDependencies": {
+    "@types/mapbox-gl": "^3.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.10",
+    "vitest": "^1.1.0",
     "wrangler": "^3.22.1"
   },
   "engines": {
@@ -30,12 +43,15 @@
     "underwater-robotics",
     "digital-twin",
     "fleet-management",
+    "asset-assurance",
+    "predictive-safety",
     "cloudflare",
     "websocket",
-    "real-time"
+    "real-time",
+    "enterprise"
   ],
-  "author": "Abyssal Twin Team",
-  "license": "Apache-2.0",
+  "author": "Abyssal Twin Inc.",
+  "license": "Commercial",
   "repository": {
     "type": "git",
     "url": "https://github.com/kakashi3lite/abyssal-twin.git",
