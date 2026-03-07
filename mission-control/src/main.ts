@@ -1,8 +1,18 @@
-// Abyssal Twin — Market-Ready Mission Control Dashboard
-// Real-time data, customizable widgets, export capabilities
+/**
+ * Abyssal Twin — Mission Control Dashboard
+ * Real-time data, customizable widgets, export capabilities
+ * 
+ * Features:
+ * - Auto-detects demo mode (GitHub Pages) vs real API
+ * - Simulates realistic AUV mission data with lawnmower patterns
+ * - Real-time WebSocket-like updates every 2 seconds
+ * - Visual demo mode indicator
+ */
 
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
+import type { FleetStatus, Vehicle, StateVector, ResearchMetrics, SystemEvent, DashboardState } from './types';
+import { DemoDataEngine, DemoWebSocket, shouldUseDemoMode } from './demo-data';
 
 // Configuration - uses environment variables for deployment flexibility
 const CONFIG = {
@@ -13,79 +23,13 @@ const CONFIG = {
   MAX_EVENTS: 50,
 };
 
-// State Management
-interface DashboardState {
-  fleetStatus: FleetStatus | null;
-  metrics: ResearchMetrics | null;
-  events: SystemEvent[];
-  connectionStatus: 'connected' | 'disconnected' | 'connecting';
-  selectedTimeRange: string;
-  autoRefresh: boolean;
-  theme: 'dark' | 'light';
-}
-
-interface FleetStatus {
-  vehicles: Vehicle[];
-  updatedAt: string;
-}
-
-interface Vehicle {
-  id: number;
-  name: string;
-  type: 'auv' | 'usv' | 'support';
-  status: 'online' | 'partitioned' | 'offline';
-  lastSeen: string | null;
-  latestState: StateVector | null;
-}
-
-interface StateVector {
-  auvId: number;
-  timestamp: number;
-  x: number;
-  y: number;
-  z: number;
-  yaw: number;
-  positionVariance: number;
-  anomalyDetected: boolean;
-  healthScore: number;
-}
-
-interface ResearchMetrics {
-  rq1: {
-    wireFormatBytes: number;
-    baselineBytes: number;
-    compressionRatio: string;
-    target: string;
-    status: string;
-  };
-  rq2: {
-    totalStateVectors: number;
-    vehiclesTracked: number;
-    averagePositionVariance: number | null;
-  };
-  rq3: {
-    totalAnomalies: number;
-    averageConfidence: number | null;
-    averageSeverity: number | null;
-    acknowledgedCount: number;
-    averageSyncLagSeconds: number | null;
-  };
-}
-
-interface SystemEvent {
-  id: string;
-  timestamp: Date;
-  type: 'sync' | 'anomaly' | 'mission' | 'system';
-  message: string;
-  severity?: 'info' | 'warning' | 'critical';
-}
-
 class DashboardManager {
   private state: DashboardState;
-  private ws: WebSocket | null = null;
+  private ws: WebSocket | DemoWebSocket | null = null;
   private eventSource: EventSource | null = null;
   private refreshTimer: number | null = null;
   private charts: Map<string, Chart> = new Map();
+  private demoEngine: DemoDataEngine | null = null;
   
   constructor() {
     this.state = {
@@ -93,6 +37,7 @@ class DashboardManager {
       metrics: null,
       events: [],
       connectionStatus: 'connecting',
+      isDemoMode: false,
       selectedTimeRange: '24h',
       autoRefresh: true,
       theme: 'dark',
@@ -103,13 +48,13 @@ class DashboardManager {
   
   private init() {
     this.loadUserPreferences();
+    this.detectMode();
     this.initializeWidgets();
-    this.connectWebSocket();
-    this.connectSSE();
+    this.setupRealtimeConnection();
     this.startAutoRefresh();
     this.updateTimestamp();
     
-    // Global functions
+    // Global functions for HTML onclick handlers
     (window as any).refreshAll = () => this.refreshAll();
     (window as any).toggleSettings = () => this.toggleSettings();
     (window as any).toggleTheme = () => this.toggleTheme();
@@ -120,6 +65,58 @@ class DashboardManager {
     (window as any).saveSettings = () => this.saveSettings();
     (window as any).setLayout = (layout: string) => this.setLayout(layout);
     (window as any).updateTimeRange = () => this.updateTimeRange();
+    (window as any).removeWidget = (widgetId: string) => this.removeWidget(widgetId);
+  }
+
+  /**
+   * Detect whether to use demo mode or real API
+   */
+  private detectMode() {
+    this.state.isDemoMode = shouldUseDemoMode();
+    
+    if (this.state.isDemoMode) {
+      console.log('🎮 DEMO MODE: Using simulated AUV data');
+      this.addEvent('system', '🎮 Demo Mode Active — Simulating AUV fleet data', 'info');
+      this.updateConnectionStatus('connected');
+    } else {
+      console.log('🔌 LIVE MODE: Connecting to real API');
+    }
+  }
+  
+  private setupRealtimeConnection() {
+    if (this.state.isDemoMode) {
+      // Use demo WebSocket simulation
+      this.demoEngine = new DemoDataEngine();
+      this.demoEngine.start((fleet, metrics, event) => {
+        this.state.fleetStatus = fleet;
+        this.state.metrics = metrics;
+        this.updateFleetWidget(fleet);
+        this.updateMetricsWidget(metrics);
+        this.updateCharts(fleet);
+        
+        if (event) {
+          this.state.events.unshift(event);
+          if (this.state.events.length > CONFIG.MAX_EVENTS) {
+            this.state.events.pop();
+          }
+          this.updateEventsWidget();
+        }
+      });
+      
+      // Simulate WebSocket for event handling
+      this.ws = new DemoWebSocket(`${CONFIG.WS_URL}?vesselId=control`);
+      this.ws.on('open', () => {
+        this.updateConnectionStatus('connected');
+      });
+      this.ws.on('message', (event: any) => {
+        const data = JSON.parse(event.data);
+        this.handleWebSocketMessage(data);
+      });
+    } else {
+      // Use real connections
+      this.connectWebSocket();
+      this.connectSSE();
+    }
   }
   
   // WebSocket Connection for Real-time Updates
@@ -143,7 +140,6 @@ class DashboardManager {
       
       this.ws.onclose = () => {
         this.updateConnectionStatus('disconnected');
-        // Reconnect after 5 seconds
         setTimeout(() => this.connectWebSocket(), 5000);
       };
     } catch (e) {
@@ -177,16 +173,20 @@ class DashboardManager {
   
   // Auto-refresh for REST API polling
   private startAutoRefresh() {
-    this.refreshAll();
-    
-    this.refreshTimer = window.setInterval(() => {
-      if (this.state.autoRefresh) {
-        this.refreshAll();
-      }
-    }, CONFIG.REFRESH_INTERVAL);
+    if (!this.state.isDemoMode) {
+      this.refreshAll();
+      
+      this.refreshTimer = window.setInterval(() => {
+        if (this.state.autoRefresh) {
+          this.refreshAll();
+        }
+      }, CONFIG.REFRESH_INTERVAL);
+    }
   }
   
   private async refreshAll() {
+    if (this.state.isDemoMode) return; // Demo mode handles its own updates
+    
     await Promise.all([
       this.fetchFleetStatus(),
       this.fetchMetrics(),
@@ -220,7 +220,6 @@ class DashboardManager {
   }
   
   private handleWebSocketMessage(data: any) {
-    // Handle different message types
     if (data.type === 'state_update') {
       this.addEvent('sync', `State update from AUV-${data.auvId}`);
     } else if (data.type === 'anomaly') {
@@ -229,8 +228,9 @@ class DashboardManager {
       this.addEvent('system', `Network partition detected`, 'critical');
     }
     
-    // Refresh fleet status on any message
-    this.fetchFleetStatus();
+    if (!this.state.isDemoMode) {
+      this.fetchFleetStatus();
+    }
   }
   
   private updateConnectionStatus(status: DashboardState['connectionStatus']) {
@@ -240,7 +240,9 @@ class DashboardManager {
     
     if (dot && text) {
       dot.className = 'status-dot' + (status === 'connected' ? '' : ' disconnected');
-      text.textContent = status === 'connected' ? 'Live' : 'Reconnecting...';
+      text.textContent = status === 'connected' 
+        ? (this.state.isDemoMode ? 'Demo Mode' : 'Live') 
+        : 'Reconnecting...';
     }
   }
   
@@ -260,7 +262,6 @@ class DashboardManager {
     
     this.updateEventsWidget();
     
-    // Browser notification for critical events
     const notifyCheckbox = document.getElementById('notifyAnomalies') as HTMLInputElement | null;
     if (severity === 'critical' && notifyCheckbox?.checked) {
       this.showNotification('Abyssal Twin Alert', message);
@@ -279,6 +280,7 @@ class DashboardManager {
     if (!dashboard) return;
     
     dashboard.innerHTML = `
+      ${this.createDemoBanner()}
       ${this.createFleetWidget()}
       ${this.createMetricsWidget()}
       ${this.createCompressionWidget()}
@@ -287,8 +289,29 @@ class DashboardManager {
       ${this.createEventsWidget()}
     `;
     
-    // Initialize charts after DOM update
     setTimeout(() => this.initializeCharts(), 100);
+  }
+
+  private createDemoBanner(): string {
+    if (!this.state.isDemoMode) return '';
+    
+    return `
+      <div class="demo-banner" id="demoBanner">
+        <span class="demo-pulse">🎮</span>
+        <span class="demo-text">
+          <strong>DEMO MODE</strong> — Simulated AUV fleet data. 
+          <button onclick="disableDemoAndReload()" class="demo-link">Connect to real API →</button>
+        </span>
+        <button class="demo-close" onclick="document.getElementById('demoBanner').style.display='none'">×</button>
+      </div>
+      <script>
+        function disableDemoAndReload() {
+          localStorage.removeItem('demo_mode');
+          localStorage.setItem('use_real_api', 'true');
+          window.location.reload();
+        }
+      </script>
+    `;
   }
   
   private createFleetWidget(): string {
@@ -304,7 +327,7 @@ class DashboardManager {
         <div class="widget-body">
           <div class="loading" id="fleet-loading">
             <div class="spinner"></div>
-            Loading fleet data...
+            ${this.state.isDemoMode ? 'Initializing demo fleet...' : 'Loading fleet data...'}
           </div>
           <div class="auv-list" id="fleet-content" style="display: none;"></div>
         </div>
@@ -327,7 +350,7 @@ class DashboardManager {
             <div class="spinner"></div>
             Loading metrics...
           </div>
-          <div class="metric-grid" id="metrics-content" style="display: none;"></div>
+          <div class="metrics-content" id="metrics-content" style="display: none;"></div>
         </div>
       </div>
     `;
@@ -343,15 +366,27 @@ class DashboardManager {
           </div>
         </div>
         <div class="widget-body">
-          <div class="metric-item">
-            <div class="metric-label">Compression Ratio</div>
-            <div class="metric-value" id="compression-ratio">--</div>
-            <div class="metric-trend trend-up">Target: >10x</div>
-          </div>
-          <div class="metric-item" style="margin-top: 1rem;">
-            <div class="metric-label">Wire Format Size</div>
-            <div class="metric-value" id="wire-size">--</div>
-            <div class="metric-trend">Target: ≤32 bytes</div>
+          <div class="compression-stats" id="compression-stats">
+            <div class="stat-row">
+              <span class="stat-label">Wire Format:</span>
+              <span class="stat-value" id="wire-bytes">-- bytes</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Baseline:</span>
+              <span class="stat-value" id="baseline-bytes">-- bytes</span>
+            </div>
+            <div class="stat-row highlight">
+              <span class="stat-label">Ratio:</span>
+              <span class="stat-value" id="compression-ratio">--x</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Target:</span>
+              <span class="stat-value" id="compression-target">>10x</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Status:</span>
+              <span class="stat-value" id="compression-status">--</span>
+            </div>
           </div>
         </div>
       </div>
@@ -362,21 +397,29 @@ class DashboardManager {
     return `
       <div class="widget" data-widget="anomaly">
         <div class="widget-header">
-          <span class="widget-title">⚠️ RQ3: Anomaly Detection</span>
+          <span class="widget-title">⚠️ RQ3: Anomalies</span>
           <div class="widget-controls">
             <button onclick="removeWidget('anomaly')" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
-          <div class="metric-item">
-            <div class="metric-label">ARL₀ (False Alarm Rate)</div>
-            <div class="metric-value" id="arl0">--</div>
-            <div class="metric-trend">Target: >10,000</div>
-          </div>
-          <div class="metric-item" style="margin-top: 1rem;">
-            <div class="metric-label">Detection Delay</div>
-            <div class="metric-value" id="detection-delay">--</div>
-            <div class="metric-trend">Target: <10 samples</div>
+          <div class="anomaly-stats" id="anomaly-stats">
+            <div class="stat-row">
+              <span class="stat-label">Total:</span>
+              <span class="stat-value" id="anomaly-total">--</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Confidence:</span>
+              <span class="stat-value" id="anomaly-confidence">--%</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Severity:</span>
+              <span class="stat-value" id="anomaly-severity">--</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Sync Lag:</span>
+              <span class="stat-value" id="sync-lag">--s</span>
+            </div>
           </div>
         </div>
       </div>
@@ -385,18 +428,20 @@ class DashboardManager {
   
   private createChartWidget(): string {
     return `
-      <div class="widget" data-widget="chart" style="grid-column: span 2;">
+      <div class="widget widget-wide" data-widget="chart">
         <div class="widget-header">
-          <span class="widget-title">📈 Fleet Coherence Over Time</span>
+          <span class="widget-title">📈 Fleet Depth History</span>
           <div class="widget-controls">
-            <button onclick="downloadChart('coherence')" title="Download">💾</button>
+            <select id="timeRange" onchange="updateTimeRange()">
+              <option value="1h">1 Hour</option>
+              <option value="24h" selected>24 Hours</option>
+              <option value="7d">7 Days</option>
+            </select>
             <button onclick="removeWidget('chart')" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
-          <div class="chart-container">
-            <canvas id="coherenceChart"></canvas>
-          </div>
+          <canvas id="depthChart"></canvas>
         </div>
       </div>
     `;
@@ -404,43 +449,154 @@ class DashboardManager {
   
   private createEventsWidget(): string {
     return `
-      <div class="widget" data-widget="events">
+      <div class="widget widget-tall" data-widget="events">
         <div class="widget-header">
-          <span class="widget-title">📋 System Events</span>
+          <span class="widget-title">📋 Event Log</span>
           <div class="widget-controls">
-            <button onclick="clearEvents()" title="Clear">🗑️</button>
             <button onclick="removeWidget('events')" title="Remove">✕</button>
           </div>
         </div>
         <div class="widget-body">
-          <div class="event-list" id="events-list">
-            <div class="event-item">
-              <span class="event-time">--:--:--</span>
-              <span class="event-badge badge-system">SYSTEM</span>
-              <span>Waiting for events...</span>
-            </div>
-          </div>
+          <div class="events-list" id="events-list"></div>
         </div>
       </div>
     `;
   }
   
+  // Update methods
+  private updateFleetWidget(fleet: FleetStatus) {
+    const loading = document.getElementById('fleet-loading');
+    const content = document.getElementById('fleet-content');
+    
+    if (loading) loading.style.display = 'none';
+    if (content) {
+      content.style.display = 'grid';
+      content.innerHTML = fleet.vehicles.map(v => this.createAUVCard(v)).join('');
+    }
+  }
+  
+  private createAUVCard(vehicle: Vehicle): string {
+    const state = vehicle.latestState;
+    const statusColor = vehicle.status === 'online' ? 'var(--accent-success)' : 
+                       vehicle.status === 'partitioned' ? 'var(--accent-warning)' : 
+                       'var(--accent-danger)';
+    
+    return `
+      <div class="auv-card ${vehicle.status}" data-auv-id="${vehicle.id}">
+        <div class="auv-header">
+          <span class="auv-name">${vehicle.name}</span>
+          <span class="auv-status" style="color: ${statusColor}">
+            ${vehicle.status === 'online' ? '🟢' : vehicle.status === 'partitioned' ? '🟡' : '🔴'}
+          </span>
+        </div>
+        <div class="auv-details">
+          <div class="auv-position">
+            <span class="coord">X: ${state?.x.toFixed(1) ?? '--'}</span>
+            <span class="coord">Y: ${state?.y.toFixed(1) ?? '--'}</span>
+            <span class="coord">Z: ${state?.z.toFixed(1) ?? '--'}m</span>
+          </div>
+          <div class="auv-health">
+            <div class="health-bar">
+              <div class="health-fill" style="width: ${state?.healthScore ?? 0}%; background: ${statusColor}"></div>
+            </div>
+            <span class="health-text">${state?.healthScore ?? '--'}%</span>
+          </div>
+          ${state?.anomalyDetected ? `
+            <div class="auv-alert">
+              ⚠️ Anomaly detected
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  private updateMetricsWidget(metrics: ResearchMetrics) {
+    const loading = document.getElementById('metrics-loading');
+    const content = document.getElementById('metrics-content');
+    
+    if (loading) loading.style.display = 'none';
+    if (content) {
+      content.style.display = 'block';
+      
+      // Update compression stats
+      const wireBytes = document.getElementById('wire-bytes');
+      const baselineBytes = document.getElementById('baseline-bytes');
+      const compressionRatio = document.getElementById('compression-ratio');
+      const compressionStatus = document.getElementById('compression-status');
+      
+      if (wireBytes) wireBytes.textContent = `${metrics.rq1.wireFormatBytes} bytes`;
+      if (baselineBytes) baselineBytes.textContent = `${metrics.rq1.baselineBytes} bytes`;
+      if (compressionRatio) compressionRatio.textContent = metrics.rq1.compressionRatio;
+      if (compressionStatus) {
+        compressionStatus.textContent = metrics.rq1.status;
+        compressionStatus.className = 'stat-value ' + (metrics.rq1.status === 'PASS' ? 'status-pass' : 'status-fail');
+      }
+      
+      // Update anomaly stats
+      const anomalyTotal = document.getElementById('anomaly-total');
+      const anomalyConfidence = document.getElementById('anomaly-confidence');
+      const anomalySeverity = document.getElementById('anomaly-severity');
+      const syncLag = document.getElementById('sync-lag');
+      
+      if (anomalyTotal) anomalyTotal.textContent = metrics.rq3.totalAnomalies.toString();
+      if (anomalyConfidence) anomalyConfidence.textContent = `${Math.round((metrics.rq3.averageConfidence || 0) * 100)}%`;
+      if (anomalySeverity) anomalySeverity.textContent = (metrics.rq3.averageSeverity || 0).toFixed(1);
+      if (syncLag) syncLag.textContent = `${(metrics.rq3.averageSyncLagSeconds || 0).toFixed(2)}s`;
+    }
+  }
+  
+  private updateEventsWidget() {
+    const container = document.getElementById('events-list');
+    if (!container) return;
+    
+    container.innerHTML = this.state.events.map(event => `
+      <div class="event-item event-${event.type} event-severity-${event.severity}">
+        <div class="event-time">${event.timestamp.toLocaleTimeString()}</div>
+        <div class="event-message">${event.message}</div>
+      </div>
+    `).join('');
+    
+    // Scroll to top
+    container.scrollTop = 0;
+  }
+  
+  private updateCharts(fleet: FleetStatus) {
+    const depthChart = this.charts.get('depth');
+    if (!depthChart) return;
+    
+    // Update with latest depth data
+    const now = Date.now();
+    fleet.vehicles.forEach((v, idx) => {
+      if (v.latestState) {
+        depthChart.data.datasets[idx].data.push({
+          x: now,
+          y: Math.abs(v.latestState.z),
+        });
+        
+        // Keep last 50 points
+        if (depthChart.data.datasets[idx].data.length > 50) {
+          depthChart.data.datasets[idx].data.shift();
+        }
+      }
+    });
+    
+    depthChart.update('none'); // Update without animation for performance
+  }
+  
   private initializeCharts() {
-    const ctx = document.getElementById('coherenceChart') as HTMLCanvasElement;
+    const ctx = document.getElementById('depthChart') as HTMLCanvasElement | null;
     if (!ctx) return;
     
-    const chart = new Chart(ctx, {
+    const depthChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: [],
-        datasets: [{
-          label: 'Fleet Coherence (%)',
-          data: [],
-          borderColor: '#64d2ff',
-          backgroundColor: 'rgba(100, 210, 255, 0.1)',
-          fill: true,
-          tension: 0.4,
-        }]
+        datasets: [
+          { label: 'AUV-01', data: [], borderColor: '#64d2ff', backgroundColor: 'rgba(100, 210, 255, 0.1)', tension: 0.4 },
+          { label: 'AUV-02', data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74, 222, 128, 0.1)', tension: 0.4 },
+          { label: 'USV-01', data: [], borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', tension: 0.4 },
+          { label: 'AUV-03', data: [], borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', tension: 0.4 },
+        ],
       },
       options: {
         responsive: true,
@@ -448,251 +604,151 @@ class DashboardManager {
         scales: {
           x: {
             type: 'time',
-            time: {
-              displayFormats: {
-                minute: 'HH:mm'
-              }
-            },
-            grid: {
-              color: 'rgba(255, 255, 255, 0.1)'
-            },
-            ticks: {
-              color: '#8b9dc3'
-            }
+            time: { displayFormats: { second: 'HH:mm:ss' } },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+            ticks: { color: '#8b9dc3' },
           },
           y: {
-            min: 0,
-            max: 100,
-            grid: {
-              color: 'rgba(255, 255, 255, 0.1)'
-            },
-            ticks: {
-              color: '#8b9dc3'
-            }
-          }
+            title: { display: true, text: 'Depth (m)', color: '#8b9dc3' },
+            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+            ticks: { color: '#8b9dc3' },
+            reverse: true, // Depth increases downward
+          },
         },
         plugins: {
           legend: {
-            labels: {
-              color: '#e0e6ed'
-            }
-          }
-        }
-      }
+            labels: { color: '#e0e6ed' },
+          },
+        },
+      },
     });
     
-    this.charts.set('coherence', chart);
-    
-    // Simulate historical data
-    this.populateHistoricalData(chart);
+    this.charts.set('depth', depthChart);
   }
   
-  private populateHistoricalData(chart: Chart) {
-    const data: { x: number; y: number }[] = [];
-    const now = Date.now();
-    
-    for (let i = 60; i >= 0; i--) {
-      data.push({
-        x: now - i * 60000,
-        y: 95 + Math.random() * 5
-      });
-    }
-    
-    chart.data.datasets[0].data = data as any;
-    chart.update();
-  }
-  
-  // Update Methods
-  private updateFleetWidget(data: FleetStatus) {
-    const loading = document.getElementById('fleet-loading');
-    const content = document.getElementById('fleet-content');
-    
-    if (loading) loading.style.display = 'none';
-    if (content) {
-      content.style.display = 'block';
-      content.innerHTML = data.vehicles.map(v => `
-        <div class="auv-item">
-          <div class="auv-id">${v.id}</div>
-          <div class="auv-info">
-            <h4>${v.name}</h4>
-            <div class="auv-meta">${v.type.toUpperCase()} • Last seen: ${v.lastSeen ? new Date(v.lastSeen).toLocaleTimeString() : 'Never'}</div>
-          </div>
-          <div class="auv-status">
-            <span style="color: ${v.status === 'online' ? '#4ade80' : v.status === 'partitioned' ? '#fbbf24' : '#f87171'};">●</span>
-            ${v.status}
-          </div>
-          <div class="auv-latency">${v.latestState ? `${Math.round(200 + Math.random() * 100)}ms` : '--'}</div>
-        </div>
-      `).join('');
-    }
-  }
-  
-  private updateMetricsWidget(data: ResearchMetrics) {
-    const loading = document.getElementById('metrics-loading');
-    const content = document.getElementById('metrics-content');
-    
-    if (loading) loading.style.display = 'none';
-    if (content) {
-      content.style.display = 'grid';
-      content.innerHTML = `
-        <div class="metric-item">
-          <div class="metric-label">Compression Ratio</div>
-          <div class="metric-value" style="color: ${data.rq1.status === 'PASS' ? '#4ade80' : '#f87171'}">${data.rq1.compressionRatio}x</div>
-          <div class="metric-trend trend-up">✓ ${data.rq1.target}</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-label">State Vectors</div>
-          <div class="metric-value">${data.rq2.totalStateVectors.toLocaleString()}</div>
-          <div class="metric-trend">${data.rq2.vehiclesTracked} vehicles</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-label">Anomalies Detected</div>
-          <div class="metric-value" style="color: ${data.rq3.totalAnomalies > 0 ? '#fbbf24' : '#4ade80'}">${data.rq3.totalAnomalies}</div>
-          <div class="metric-trend">${data.rq3.acknowledgedCount} acknowledged</div>
-        </div>
-        <div class="metric-item">
-          <div class="metric-label">Avg Sync Lag</div>
-          <div class="metric-value">${data.rq3.averageSyncLagSeconds?.toFixed(2) || '--'}s</div>
-          <div class="metric-trend">Cloud to vessel</div>
-        </div>
-      `;
-    }
-    
-    // Update specific widgets
-    document.getElementById('compression-ratio')!.textContent = data.rq1.compressionRatio + 'x';
-    document.getElementById('wire-size')!.textContent = data.rq1.wireFormatBytes + ' bytes';
-    
-    // Simulate RQ3 metrics (would come from API)
-    document.getElementById('arl0')!.textContent = '12,400';
-    document.getElementById('detection-delay')!.textContent = '8 samples';
-  }
-  
-  private updateEventsWidget() {
-    const container = document.getElementById('events-list');
-    if (!container) return;
-    
-    container.innerHTML = this.state.events.map(e => `
-      <div class="event-item">
-        <span class="event-time">${e.timestamp.toLocaleTimeString()}</span>
-        <span class="event-badge badge-${e.type}">${e.type}</span>
-        <span>${e.message}</span>
-      </div>
-    `).join('');
-  }
-  
-  // UI Actions
+  // User interaction handlers
   private toggleSettings() {
     const panel = document.getElementById('settingsPanel');
-    panel?.classList.toggle('open');
+    if (panel) {
+      panel.classList.toggle('open');
+    }
   }
   
   private toggleTheme() {
     this.state.theme = this.state.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', this.state.theme);
-    localStorage.setItem('dashboard-theme', this.state.theme);
+    localStorage.setItem('theme', this.state.theme);
   }
   
   private addWidget() {
-    const types = ['fleet', 'metrics', 'compression', 'anomaly', 'chart', 'events'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    this.addEvent('system', `Added ${type} widget`);
+    // Show widget selection modal
+    console.log('Add widget clicked');
   }
   
-  private openExport() {
-    document.getElementById('exportModal')?.classList.add('open');
-  }
-  
-  private closeExport() {
-    document.getElementById('exportModal')?.classList.remove('open');
-  }
-  
-  private async exportData() {
-    const type = (document.getElementById('exportType') as HTMLSelectElement)?.value;
-    const format = (document.getElementById('exportFormat') as HTMLSelectElement)?.value;
-    
-    try {
-      const response = await fetch(`${CONFIG.API_BASE}/api/v1/export/${type}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `abyssal_${type}_${new Date().toISOString().split('T')[0]}.${format}`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        this.addEvent('system', `Exported ${type} data`);
-      }
-    } catch (e) {
-      console.error('Export failed:', e);
-    }
-    
-    this.closeExport();
-  }
-  
-  private saveSettings() {
-    this.state.autoRefresh = (document.getElementById('autoRefresh') as HTMLInputElement)?.checked;
-    localStorage.setItem('dashboard-settings', JSON.stringify({
-      autoRefresh: this.state.autoRefresh,
-      theme: this.state.theme,
-    }));
-    this.toggleSettings();
-    this.addEvent('system', 'Settings saved');
-  }
-  
-  private loadUserPreferences() {
-    const saved = localStorage.getItem('dashboard-settings');
-    if (saved) {
-      const prefs = JSON.parse(saved);
-      this.state.autoRefresh = prefs.autoRefresh ?? true;
-      this.state.theme = prefs.theme ?? 'dark';
-      document.documentElement.setAttribute('data-theme', this.state.theme);
+  private removeWidget(widgetId: string) {
+    const widget = document.querySelector(`[data-widget="${widgetId}"]`);
+    if (widget) {
+      widget.remove();
     }
   }
   
   private setLayout(layout: string) {
     const dashboard = document.getElementById('dashboard');
-    if (dashboard) {
-      dashboard.style.gridTemplateColumns = layout === 'list' ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))';
+    if (!dashboard) return;
+    
+    dashboard.className = 'dashboard layout-' + layout;
+    localStorage.setItem('layout', layout);
+  }
+  
+  private openExport() {
+    const modal = document.getElementById('exportModal');
+    if (modal) {
+      modal.style.display = 'flex';
     }
+  }
+  
+  private closeExport() {
+    const modal = document.getElementById('exportModal');
+    if (modal) {
+      modal.style.display = 'none';
+    }
+  }
+  
+  private exportData() {
+    const format = (document.getElementById('exportFormat') as HTMLSelectElement)?.value || 'json';
+    const range = (document.getElementById('exportRange') as HTMLSelectElement)?.value || '24h';
+    
+    // Generate export data
+    const data = {
+      timestamp: new Date().toISOString(),
+      range,
+      format,
+      fleet: this.state.fleetStatus,
+      metrics: this.state.metrics,
+      events: this.state.events.slice(0, 100),
+    };
+    
+    // Download file
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `abyssal-twin-export-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    this.closeExport();
+    this.addEvent('system', `Data exported (${format.toUpperCase()})`);
+  }
+  
+  private saveSettings() {
+    const refreshRate = (document.getElementById('refreshRate') as HTMLSelectElement)?.value;
+    const notifyAnomalies = (document.getElementById('notifyAnomalies') as HTMLInputElement)?.checked;
+    
+    if (refreshRate) {
+      localStorage.setItem('refreshRate', refreshRate);
+    }
+    if (notifyAnomalies !== undefined) {
+      localStorage.setItem('notifyAnomalies', notifyAnomalies.toString());
+    }
+    
+    this.toggleSettings();
+    this.addEvent('system', 'Settings saved');
   }
   
   private updateTimeRange() {
     const range = (document.getElementById('timeRange') as HTMLSelectElement)?.value;
-    this.state.selectedTimeRange = range;
-    this.refreshAll();
+    if (range) {
+      this.state.selectedTimeRange = range;
+      this.refreshAll();
+    }
   }
   
   private updateTimestamp() {
-    const update = () => {
-      const el = document.getElementById('timestamp');
-      if (el) {
-        el.textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-      }
-    };
-    update();
-    setInterval(update, 1000);
+    const el = document.getElementById('lastUpdated');
+    if (el) {
+      el.textContent = new Date().toLocaleTimeString();
+    }
+    setTimeout(() => this.updateTimestamp(), 1000);
+  }
+  
+  private loadUserPreferences() {
+    // Load theme
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
+    if (savedTheme) {
+      this.state.theme = savedTheme;
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+    
+    // Load layout
+    const savedLayout = localStorage.getItem('layout');
+    if (savedLayout) {
+      this.setLayout(savedLayout);
+    }
   }
 }
 
-// Global helpers
-(window as any).removeWidget = (id: string) => {
-  document.querySelector(`[data-widget="${id}"]`)?.remove();
-};
-
-(window as any).clearEvents = () => {
-  const list = document.getElementById('events-list');
-  if (list) list.innerHTML = '';
-};
-
-(window as any).downloadChart = (id: string) => {
-  const canvas = document.getElementById(id + 'Chart') as HTMLCanvasElement;
-  if (canvas) {
-    const link = document.createElement('a');
-    link.download = `chart_${id}_${Date.now()}.png`;
-    link.href = canvas.toDataURL();
-    link.click();
-  }
-};
-
-// Initialize dashboard
-new DashboardManager();
+// Initialize dashboard when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  new DashboardManager();
+});

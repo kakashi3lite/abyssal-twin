@@ -482,7 +482,67 @@
       padding: 0.75rem;
       border-radius: 6px;
     }
-  </style>
+  
+    /* Demo Mode Banner */
+    .demo-banner {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .demo-pulse {
+      animation: demo-pulse 2s infinite;
+      font-size: 1.25rem;
+    }
+    
+    @keyframes demo-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+    
+    .demo-text {
+      flex: 1;
+    }
+    
+    .demo-link {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      margin-left: 0.5rem;
+      transition: background 0.2s;
+    }
+    
+    .demo-link:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    .demo-close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.25rem;
+      cursor: pointer;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    
+    .demo-close:hover {
+      opacity: 1;
+    }
+    
+    /* Status indicators */
+    .status-pass { color: var(--accent-success); font-weight: 600; }
+    .status-fail { color: var(--accent-danger); font-weight: 600; }
+</style>
 </head>
 <body>
   <header class="header">
