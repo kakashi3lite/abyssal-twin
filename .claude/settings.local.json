@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls -la)",
+      "Bash(git config user.name \"kakashi3lite\")",
+      "Bash(git config user.email \"swanandtanavade100@gmail.com\")",
+      "Bash(npm run build)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(find /Users/kakashi3lite/abyssal-twin -type f ! -path \"*/node_modules/*\" ! -path \"*/.next/*\" ! -path \"*/dist/*\" ! -path \"*/.git/*\" -exec wc -l {} +)",
+      "Bash(find /Users/kakashi3lite/abyssal-twin -type f -not -path \"*/node_modules/*\" -not -path \"*/.next/*\" -not -path \"*/dist/*\" -not -path \"*/.git/*\" -exec wc -l {} +)",
+      "Bash(wc -l /Users/kakashi3lite/abyssal-twin/cloudflare/pages/dist/assets/index-*.js)",
+      "Bash(find /Users/kakashi3lite/abyssal-twin -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec wc -l {} +)",
+      "Bash(find /Users/kakashi3lite/abyssal-twin -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" -o -name \"*.jsx\" -o -name \"*.py\" -o -name \"*.rs\" -o -name \"*.go\" -o -name \"*.java\" \\\\\\) -not -path \"*/node_modules/*\" -not -path \"*/.next/*\" -not -path \"*/dist/*\" -not -path \"*/.git/*\" -not -path \"*/target/*\" -exec wc -l {} +)",
+      "Bash(find /Users/kakashi3lite/abyssal-twin -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) ! -path \"*/node_modules/*\" ! -path \"*/.next/*\" ! -path \"*/dist/*\" ! -path \"*/build/*\" -exec wc -l {} +)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|HACK\" /Users/kakashi3lite/abyssal-twin -not -path \"*/node_modules/*\" -not -path \"*/.git/*\" -not -path \"*/target/*\" -not -path \"*/.next/*\" -not -path \"*/dist/*\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.jsx\" --include=\"*.py\" --include=\"*.rs\" -n)",
+      "Bash(npx vite build)",
+      "Bash(npm test)"
+    ]
+  }
+}

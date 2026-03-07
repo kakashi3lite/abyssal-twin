@@ -14,13 +14,16 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "chart.js": "^4.4.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^3.0.6",
+    "framer-motion": "^12.35.0",
     "mapbox-gl": "^3.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-map-gl": "^7.1.0"
+    "react-map-gl": "^7.1.0",
+    "recharts": "^3.8.0"
   },
   "devDependencies": {
     "@types/mapbox-gl": "^3.0.0",
