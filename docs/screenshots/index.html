@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abyssal Twin — Dashboard Gallery</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #0a0e27 0%, #1a2332 100%);
+  color: #e0e6ed;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+.container { max-width: 1200px; margin: 0 auto; }
+h1 {
+  font-size: 2.5rem;
+  background: linear-gradient(135deg, #64d2ff, #4ade80);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 10px;
+}
+.subtitle { color: #8b9dc3; font-size: 1.1rem; margin-bottom: 40px; }
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 30px;
+}
+.card {
+  background: rgba(20, 27, 45, 0.8);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(100, 210, 255, 0.2);
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+.card-header {
+  padding: 20px;
+  background: rgba(100, 210, 255, 0.1);
+  border-bottom: 1px solid rgba(100, 210, 255, 0.2);
+}
+.card-header h2 {
+  color: #64d2ff;
+  font-size: 1.25rem;
+}
+.card-body {
+  padding: 0;
+  height: 400px;
+  overflow: hidden;
+  position: relative;
+}
+.card-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #0a0e27;
+}
+.view-btn {
+  display: inline-block;
+  margin: 20px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #64d2ff, #4ade80);
+  color: #0a0e27;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+.view-btn:hover { opacity: 0.9; }
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-top: 40px;
+}
+.feature {
+  background: rgba(20, 27, 45, 0.6);
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 210, 255, 0.1);
+}
+.feature h3 {
+  color: #64d2ff;
+  margin-bottom: 10px;
+  font-size: 1rem;
+}
+.feature p {
+  color: #8b9dc3;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🌊 Abyssal Twin Dashboard Gallery</h1>
+  <p class="subtitle">Live dashboard snapshots and feature previews</p>
+  
+  <div class="gallery">
+    <div class="card">
+      <div class="card-header">
+        <h2>📊 Fleet Status Overview</h2>
+      </div>
+      <div class="card-body">
+        <iframe src="dashboard-overview.html" title="Fleet Status Dashboard"></iframe>
+      </div>
+      <a href="dashboard-overview.html" class="view-btn" target="_blank">View Full Screen →</a>
+    </div>
+    
+    <div class="card">
+      <div class="card-header">
+        <h2>🔬 Research Metrics (RQ1/RQ3)</h2>
+      </div>
+      <div class="card-body">
+        <iframe src="research-metrics.html" title="Research Metrics Dashboard"></iframe>
+      </div>
+      <a href="research-metrics.html" class="view-btn" target="_blank">View Full Screen →</a>
+    </div>
+  </div>
+  
+  <div class="features">
+    <div class="feature">
+      <h3>⚡ Real-time Updates</h3>
+      <p>WebSocket connections for live fleet status with sub-second latency</p>
+    </div>
+    <div class="feature">
+      <h3>📱 Mobile Ready</h3>
+      <p>Responsive design works on tablets, phones, and desktop</p>
+    </div>
+    <div class="feature">
+      <h3>📤 Data Export</h3>
+      <p>One-click CSV/JSON export for research and reporting</p>
+    </div>
+    <div class="feature">
+      <h3>🎨 Customizable</h3>
+      <p>6 widget types, theme switching, user preferences</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

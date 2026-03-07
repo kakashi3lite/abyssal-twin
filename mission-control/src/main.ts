@@ -158,8 +158,13 @@ class DashboardManager {
       this.eventSource = new EventSource(CONFIG.SSE_URL);
       
       this.eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        this.updateFleetStatus(data);
+        try {
+          const data: FleetStatus = JSON.parse(event.data);
+          this.state.fleetStatus = data;
+          this.updateFleetWidget(data);
+        } catch (e) {
+          console.warn('Failed to parse SSE data:', e);
+        }
       };
       
       this.eventSource.onerror = () => {
@@ -256,7 +261,8 @@ class DashboardManager {
     this.updateEventsWidget();
     
     // Browser notification for critical events
-    if (severity === 'critical' && document.getElementById('notifyAnomalies')?.checked) {
+    const notifyCheckbox = document.getElementById('notifyAnomalies') as HTMLInputElement | null;
+    if (severity === 'critical' && notifyCheckbox?.checked) {
       this.showNotification('Abyssal Twin Alert', message);
     }
   }

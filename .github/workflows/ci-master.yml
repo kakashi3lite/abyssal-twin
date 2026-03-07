@@ -1,0 +1,299 @@
+name: 🌊 CI Master Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 1: Changed Files Detection
+  # ═══════════════════════════════════════════════════════════════════════════
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      typescript: ${{ steps.filter.outputs.typescript }}
+      rust: ${{ steps.filter.outputs.rust }}
+      python: ${{ steps.filter.outputs.python }}
+      mission-control: ${{ steps.filter.outputs.mission-control }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4.1.1
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            typescript:
+              - 'cloudflare/**'
+              - 'tsconfig*.json'
+            rust:
+              - 'src/iort_dt_federation/**'
+              - 'src/iort_dt_*/**'
+              - '**/Cargo.toml'
+              - '**/Cargo.lock'
+            python:
+              - 'src/iort_dt_anomaly/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'poetry.lock'
+            mission-control:
+              - 'mission-control/**'
+            docker:
+              - 'docker/**'
+              - '**/Dockerfile'
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 2: TypeScript / Cloudflare Workers
+  # ═══════════════════════════════════════════════════════════════════════════
+  typescript:
+    name: ☁️ TypeScript (Cloudflare)
+    needs: changes
+    if: ${{ needs.changes.outputs.typescript == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cloudflare/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Type check
+        run: npx tsc --noEmit
+      
+      - name: Run tests
+        if: ${{ !inputs.skip_tests }}
+        run: npm test
+      
+      - name: Build check
+        run: npm run build 2>/dev/null || echo "No build script, skipping"
+      
+      - name: Security audit
+        run: npm audit --audit-level=high || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 3: Mission Control Dashboard
+  # ═══════════════════════════════════════════════════════════════════════════
+  mission-control:
+    name: 🎛️ Mission Control
+    needs: changes
+    if: ${{ needs.changes.outputs.mission-control == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mission-control
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mission-control/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Type check
+        run: npx tsc --noEmit
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mission-control-build
+          path: mission-control/dist
+          retention-days: 1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 4: Rust Federation
+  # ═══════════════════════════════════════════════════════════════════════════
+  rust:
+    name: ⚙️ Rust (Federation)
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: ${{ matrix.target }}
+      
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/iort_dt_federation
+          shared-key: federation
+      
+      - name: Format check
+        working-directory: src/iort_dt_federation
+        run: cargo fmt -- --check
+      
+      - name: Clippy
+        working-directory: src/iort_dt_federation
+        run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::perf
+      
+      - name: Build
+        working-directory: src/iort_dt_federation
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      - name: Test
+        if: ${{ !inputs.skip_tests }}
+        working-directory: src/iort_dt_federation
+        run: cargo test --all-features --verbose
+      
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: federation-${{ matrix.target }}
+          path: src/iort_dt_federation/target/${{ matrix.target }}/release/iort-federation
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 5: Python Anomaly Detection
+  # ═══════════════════════════════════════════════════════════════════════════
+  python:
+    name: 🐍 Python (Research)
+    needs: changes
+    if: ${{ needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.7.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+      
+      - name: Cache Poetry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+      
+      - name: Install dependencies
+        run: poetry install --no-interaction --with dev
+      
+      - name: Ruff lint
+        run: poetry run ruff check src/ tests/
+      
+      - name: Ruff format check
+        run: poetry run ruff format --check src/ tests/
+      
+      - name: Type check
+        continue-on-error: true
+        run: poetry run mypy src/ --ignore-missing-imports
+      
+      - name: Run tests
+        if: ${{ !inputs.skip_tests }}
+        run: poetry run pytest tests/ -v --tb=short -x --timeout=300
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 6: Docker Build
+  # ═══════════════════════════════════════════════════════════════════════════
+  docker:
+    name: 🐳 Docker
+    needs: changes
+    if: ${{ needs.changes.outputs.docker == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Federation image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/federation/Dockerfile
+          push: false
+          tags: abyssal-federation:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 7: Summary
+  # ═══════════════════════════════════════════════════════════════════════════
+  summary:
+    name: 📊 Pipeline Summary
+    needs: [changes, typescript, mission-control, rust, python, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## 🌊 Abyssal Twin CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Changes Detection | ${{ needs.changes.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript | ${{ needs.typescript.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mission Control | ${{ needs.mission-control.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rust | ${{ needs.rust.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ needs.python.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ${{ needs.docker.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for failures
+          FAILED=""
+          for job in typescript mission-control rust python; do
+            RESULT=$(eval echo '$'"needs.${job}.result")
+            if [ "$RESULT" == "failure" ]; then
+              FAILED="$FAILED $job"
+            fi
+          done
+          
+          if [ -n "$FAILED" ]; then
+            echo "### ❌ Failed Jobs" >> $GITHUB_STEP_SUMMARY
+            echo "Failed components:$FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "### ✅ All Checks Passed" >> $GITHUB_STEP_SUMMARY
+          fi
