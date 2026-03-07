@@ -1,173 +1,114 @@
-# Deployment Fix Summary
+# Cloudflare Deployment Fix Summary
 
-**Date**: March 6, 2026  
-**Issue**: Dashboard was blank/not loading  
-**Status**: ✅ RESOLVED
+## Changes Made
 
----
+### 1. Copyright Year Updated (2025 → 2026)
+- **LICENSE**: Updated copyright year to 2026
+- **NOTICE**: Updated copyright year to 2026
 
-## 🔍 Problem Diagnosis
+### 2. Cloudflare Workflow Fixed
+**Problem**: The previous workflow used `cloudflare/pages-action@v1` which requires:
+- Project to be pre-created in Cloudflare Dashboard
+- Specific project linking setup
 
-### Root Cause
-The GitHub Pages deployment had a **file hash mismatch**:
-- HTML referenced: `main-DXYFjgNH.js`
-- Previous build created: `main-D0ABqFIt.js`
-- The old JS file was missing from the deployment
+**Solution**: Switched to **wrangler CLI** direct deployment which:
+- Auto-creates the Pages project if it doesn't exist
+- No dashboard setup required
+- More flexible deployment options
 
-### Contributing Factors
-1. **Cached GitHub Pages** - Old deployment was cached
-2. **Missing Mapbox Token** - Cloudflare workflow also lacked the token
-3. **Build Artifacts** - Different file hashes between builds (expected with Vite)
-
----
-
-## ✅ Fixes Applied
-
-### 1. GitHub Pages Workflow (Already Fixed)
+**Key workflow changes**:
 ```yaml
-VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
+# Before (requires dashboard setup)
+- uses: cloudflare/pages-action@v1
+  with:
+    apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+# After (auto-creates project)
+- run: |
+    wrangler pages deploy ../dist \
+      --project-name="abyssal-mission-control" \
+      --branch="${{ github.ref_name }}"
+  env:
+    CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 ```
 
-### 2. Cloudflare Pages Workflow (Fixed)
-```yaml
-# Added to cloudflare-pages.yml
-VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
+### 3. Build Resolution Fixed
+**Problem**: Circular chunk dependency warning
+```
+Circular chunk: mapbox-gl -> vendor -> mapbox-gl
 ```
 
-### 3. New Build Triggered
-- Pushed commit to trigger fresh build
-- GitHub Actions rebuilt with correct file hashes
-- Assets properly uploaded to Pages
-
----
-
-## 📊 Verification
-
-### Build Artifacts
-| File | Size | Status |
-|------|------|--------|
-| `main-DXYFjgNH.js` | 313,600 bytes | ✅ Deployed |
-| `main-DcTz9guU.css` | 24,059 bytes | ✅ Deployed |
-| `index.html` | 623 bytes | ✅ Deployed |
-
-### Feature Verification
-- ✅ Framer Motion animations (27 instances)
-- ✅ React components loaded
-- ✅ CSS styles applied
-- ✅ Mapbox token configured
-- ✅ Dark theme active
-
----
-
-## 🌐 Live URLs
-
-### GitHub Pages
-**URL**: https://kakashi3lite.github.io/abyssal-twin/
-
-**Features**:
-- Full animation system
-- Particle background effects
-- Telemetry gauges
-- Animated alerts
-- Interactive asset cards
-
-### Cloudflare Pages
-**URL**: https://abyssal-mission-control.pages.dev/
-
-**Note**: Requires Cloudflare secrets to be configured:
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `VITE_MAPBOX_TOKEN`
-
----
-
-## 🔧 Secrets Configuration
-
-### Required GitHub Secrets
-
-| Secret | Purpose | Platforms |
-|--------|---------|-----------|
-| `VITE_MAPBOX_TOKEN` | Mapbox GL JS | GitHub Pages + Cloudflare |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare deployment | Cloudflare only |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account | Cloudflare only |
-
-### Setting Secrets
-1. Go to: https://github.com/kakashi3lite/abyssal-twin/settings/secrets/actions
-2. Add each secret with appropriate value
-3. Re-run workflows if needed
-
----
-
-## 📝 Build Process
-
-### GitHub Pages
-```
-Push → GitHub Actions → npm run build → Deploy to Pages
+**Solution**: Optimized vite.config.ts
+```typescript
+manualChunks: {
+  'mapbox-gl': ['mapbox-gl'],      // Separate mapbox chunk
+  'react-vendor': ['react', 'react-dom'],  // React chunk
+}
 ```
 
-### Cloudflare Pages  
+Also added:
+- `chunkSizeWarningLimit: 2000` (suppresses warnings for Mapbox's 1.7MB size)
+- `optimizeDeps.include` for faster dev startup
+
+## Required Secrets
+
+Add these to GitHub Secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value | Where to Get |
+|--------|-------|--------------|
+| `CLOUDFLARE_API_TOKEN` | Create with "Cloudflare Pages:Edit" permission | Cloudflare Dashboard → My Profile → API Tokens |
+| `CLOUDFLARE_ACCOUNT_ID` | Your account identifier | Cloudflare Dashboard → Right sidebar |
+| `VITE_MAPBOX_TOKEN` | Mapbox public token | Mapbox Dashboard → Tokens |
+
+### Getting Cloudflare API Token
+
+1. Go to https://dash.cloudflare.com/profile/api-tokens
+2. Click **Create Token**
+3. Use template: **Edit Cloudflare Pages**
+4. Or create custom with:
+   - Zone:Read (for domain verification)
+   - Page:Edit (for deployment)
+
+### Getting Account ID
+
+1. Go to https://dash.cloudflare.com
+2. Look at the right sidebar
+3. Copy the **Account ID**
+
+## Deployment URLs
+
+| Environment | URL | Status |
+|-------------|-----|--------|
+| GitHub Pages | https://kakashi3lite.github.io/abyssal-twin/ | ✅ Live |
+| Cloudflare (Staging) | https://abyssal-mission-control-staging.pages.dev | 🔄 After secrets added |
+| Cloudflare (Production) | https://abyssal-mission-control.pages.dev | 🔄 After secrets added |
+
+## Build Output
+
 ```
-Push → GitHub Actions → npm run build → Cloudflare deploy
+dist/index.html                     0.78 kB │ gzip:  0.46 kB
+dist/assets/main-CKZ1a_sp.css      65.20 kB │ gzip: 10.17 kB
+dist/assets/react-vendor-xxx.js   140.86 kB │ gzip: 45.28 kB
+dist/assets/main-xxx.js           190.53 kB │ gzip: 61.87 kB
+dist/assets/mapbox-gl-xxx.js    1,695.89 kB │ gzip: 465.96 kB
 ```
 
-### Build Environment Variables
-```
-NODE_ENV=production
-VITE_API_BASE=https://api.abyssal-twin.dev
-VITE_WS_URL=wss://api.abyssal-twin.dev/ws/live
-VITE_SSE_URL=https://api.abyssal-twin.dev/api/v1/fleet/stream
-VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }}
-```
+Total JS: ~2.0MB (572KB gzipped)
 
----
+## Testing Locally
 
-## 🎨 What's Live Now
-
-### UX Enhancements
-- **Smooth page load** - Fade-in animation
-- **Particle background** - Ambient floating particles
-- **Animated cards** - Hover lift + glow effects
-- **Telemetry gauges** - Circular animated indicators
-- **Alert animations** - Slide-in with spring physics
-- **Asset cards** - Staggered list entrance
-
-### Visual Polish
-- Pulsing logo with cyan glow
-- Status indicator animations
-- Smooth sidebar transitions
-- Button tap feedback
-- Alert dismissal animations
-
----
-
-## ⚠️ Troubleshooting
-
-### If Dashboard is Blank
-1. Check browser console for errors
-2. Clear browser cache (Ctrl+Shift+R)
-3. Verify file hashes match in HTML/JS
-4. Check GitHub Actions status
-
-### If Map Doesn't Load
-1. Verify `VITE_MAPBOX_TOKEN` is set in secrets
-2. Check token is valid at https://account.mapbox.com/
-3. Re-run workflow after adding secret
-
-### Force Rebuild
 ```bash
-git commit --allow-empty -m "trigger: rebuild"
-git push
+cd mission-control
+npm ci
+npm run build
+# Build succeeds without errors
 ```
 
----
+## Next Steps
 
-## ✅ Status: OPERATIONAL
-
-**GitHub Pages**: https://kakashi3lite.github.io/abyssal-twin/ ✅  
-**Cloudflare Pages**: https://abyssal-mission-control.pages.dev/ (requires secrets)
-
-Both platforms now have:
-- Full animation system
-- Mapbox integration
-- All UX enhancements
-- Proper environment variables
+1. Add the 3 secrets to GitHub
+2. Trigger workflow manually or push to main
+3. Check Actions tab for deployment status
+4. Access your Cloudflare Pages URL
