@@ -45,6 +45,8 @@ jobs:
           VITE_API_BASE: https://api.abyssal-twin.dev
           VITE_WS_URL: wss://api.abyssal-twin.dev/ws/live
           VITE_SSE_URL: https://api.abyssal-twin.dev/api/v1/fleet/stream
+          # Mapbox token for geospatial visualization
+          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
 
       - name: Verify build
         working-directory: mission-control
