@@ -68,3 +68,26 @@ docs/figures/
 # OS
 Thumbs.db
 Desktop.ini
+
+# ============================================================================
+# ELITE REPOSITORY CLEANUP — ADDITIONAL EXCLUSIONS
+# ============================================================================
+
+# macOS system files
+**/.DS_Store
+.AppleDouble
+.LSOverride
+
+# Archive directories (keep structure, ignore archived content)
+docs/archive/*.md
+.github/workflows/archive/*.yml
+
+# Temporary editor files
+*.bak
+*.swp
+*.swo
+*~
+
+# Local environment overrides
+.env.local
+.env.development
