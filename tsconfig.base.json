@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
+    
+    // Strictness - Competition Grade
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": false,
+    
+    // Declaration & Source Maps
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    
+    // Performance
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "${configDir}/.tsbuildinfo",
+    
+    // Module Handling
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": false,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "useUnknownInCatchVariables": true,
+    "resolveJsonModule": true,
+    
+    // Type Definitions
+    "types": ["node", "vitest/globals"]
+  },
+  "exclude": ["node_modules", "dist", ".wrangler", "**/*.test.ts"]
+}

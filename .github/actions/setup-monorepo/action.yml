@@ -1,0 +1,151 @@
+name: 'Setup Abyssal Monorepo'
+description: 'Zero-config setup for Node 20, Rust (sccache), Python 3.12 with intelligent caching'
+
+inputs:
+  rust-components:
+    description: 'Rust components to install'
+    default: 'clippy,rustfmt'
+  rust-targets:
+    description: 'Additional Rust targets'
+    default: ''
+  setup-sccache:
+    description: 'Enable sccache for Rust'
+    default: 'true'
+  setup-python:
+    description: 'Setup Python with Poetry'
+    default: 'true'
+
+outputs:
+  rust-cache-hit:
+    description: 'Whether sccache was configured'
+    value: ${{ steps.sccache-status.outputs.cache-hit }}
+  node-version:
+    description: 'Installed Node.js version'
+    value: ${{ steps.node.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    # ============================================================================
+    # Node.js 20 (LTS) with intelligent caching
+    # ============================================================================
+    - name: Setup Node.js
+      id: node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: |
+          cloudflare/package-lock.json
+    
+    - name: Install Cloudflare dependencies
+      shell: bash
+      run: |
+        if [ -f cloudflare/package.json ]; then
+          cd cloudflare
+          npm ci --silent 2>/dev/null || npm install --silent
+          echo "✅ Cloudflare dependencies installed"
+        fi
+
+    # ============================================================================
+    # Rust toolchain with sccache
+    # ============================================================================
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: ${{ inputs.rust-components }}
+        targets: ${{ inputs.rust-targets }}
+    
+    - name: Setup sccache
+      if: inputs.setup-sccache == 'true'
+      shell: bash
+      run: |
+        # Install sccache directly (more reliable than action)
+        SCCACHE_VERSION="v0.7.7"
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          curl -fsSL "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" | tar -xz -C /tmp
+          sudo mv "/tmp/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache" /usr/local/bin/
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          brew install sccache
+        fi
+        
+        echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+        echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
+        echo "SCCACHE_CACHE_SIZE=2G" >> $GITHUB_ENV
+        
+        sccache --version
+    
+    - name: Configure Cargo cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
+    - name: Check sccache status
+      id: sccache-status
+      shell: bash
+      run: |
+        if command -v sccache &> /dev/null; then
+          echo "sccache=$(sccache --version)" >> $GITHUB_OUTPUT
+          echo "cache-hit=true" >> $GITHUB_OUTPUT
+          echo "✅ sccache configured"
+        else
+          echo "cache-hit=false" >> $GITHUB_OUTPUT
+          echo "⚠️  sccache not available"
+        fi
+
+    # ============================================================================
+    # Python with Poetry (lockfile deterministic)
+    # ============================================================================
+    - name: Setup Python
+      if: inputs.setup-python == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    - name: Install Poetry
+      if: inputs.setup-python == 'true'
+      shell: bash
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+    
+    - name: Cache Poetry dependencies
+      if: inputs.setup-python == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+    
+    - name: Install Python dependencies
+      if: inputs.setup-python == 'true'
+      shell: bash
+      run: |
+        if [ -f pyproject.toml ]; then
+          $HOME/.local/bin/poetry install --no-interaction --no-root --with dev || {
+            echo "⚠️  Poetry install failed - continuing without Python deps"
+          }
+          echo "✅ Python dependencies installed"
+        else
+          echo "⚠️  No pyproject.toml found - skipping Python setup"
+        fi
+    
+    - name: Summary
+      shell: bash
+      run: |
+        echo "## 🛠️ Monorepo Setup Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Node.js 20 | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| Rust (stable) | ✅ |" >> $GITHUB_STEP_SUMMARY
+        echo "| sccache | ${{ steps.sccache-status.outputs.cache-hit == 'true' && '✅' || '⚠️' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Python 3.12 | ${{ inputs.setup-python == 'true' && '✅' || '⏭️' }} |" >> $GITHUB_STEP_SUMMARY

@@ -1,23 +1,44 @@
 # IoRT-DT Federation Service — Production Container
 # Multi-stage build: Rust builder -> distroless runtime
 # Target: <50MB final image, non-root, no shell
+#
+# NOTE: Installing Rust nightly via rustup due to time crate requiring Rust 1.88
+# TODO: Switch to rust:1-bookworm once Rust 1.88 is stable
 
 # ── Stage 1: Build ─────────────────────────────────────────────────────────
-# Build context is the repo root (..); federation crate lives under src/iort_dt_federation/
-FROM rust:1.85-bookworm AS builder
+FROM debian:bookworm-slim AS builder
 
 WORKDIR /build
 
-# Cache dependency build by copying manifests first
-COPY src/iort_dt_federation/Cargo.toml src/iort_dt_federation/Cargo.lock ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs \
-    && cargo build --release 2>/dev/null || true \
-    && rm -rf src
+# Install required dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Build the actual binary
-COPY src/iort_dt_federation/src/ src/
-RUN cargo build --release \
-    && strip target/release/iort-federation
+# Install Rust nightly via rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Verify Rust version
+RUN rustc --version && cargo --version
+
+# Copy manifests first for dependency caching
+COPY src/iort_dt_federation/Cargo.toml src/iort_dt_federation/Cargo.lock ./
+
+# Create dummy source for dependency build
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    echo "" > src/lib.rs && \
+    cargo build --release 2>/dev/null || true && \
+    rm -rf src
+
+# Copy actual source and build
+COPY src/iort_dt_federation/src/ ./src/
+RUN cargo build --release && \
+    strip target/release/iort-federation
 
 # ── Stage 2: Runtime ───────────────────────────────────────────────────────
 FROM gcr.io/distroless/cc-debian12

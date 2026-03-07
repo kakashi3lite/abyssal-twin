@@ -13,7 +13,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "FLEET_DB"
 database_name = "abyssal-fleet"
-database_id = ""                     # Populated by `wrangler d1 create`
+database_id = ""                     # Set via: wrangler d1 create abyssal-fleet
 migrations_dir = "migrations"
 
 # ─── R2 Object Storage ──────────────────────────────────────────────────────
@@ -42,15 +42,16 @@ SATELLITE_BANDWIDTH_LIMIT_KBPS = "50"
 # Batch upload interval from vessel (seconds)
 BATCH_INTERVAL_SECONDS = "60"
 
-# ─── Development Overrides ──────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT: development (local testing)
+# ═════════════════════════════════════════════════════════════════════════════
 [env.dev]
 name = "abyssal-twin-dev"
 
-# Dev environment must redeclare bindings (not inherited from top level)
 [[env.dev.d1_databases]]
 binding = "FLEET_DB"
 database_name = "abyssal-fleet-dev"
-database_id = ""
+database_id = ""                     # Set via: wrangler d1 create abyssal-fleet-dev
 migrations_dir = "migrations"
 
 [[env.dev.r2_buckets]]
@@ -65,3 +66,53 @@ class_name = "FederationCoordinator"
 ENVIRONMENT = "development"
 SATELLITE_BANDWIDTH_LIMIT_KBPS = "1000"
 BATCH_INTERVAL_SECONDS = "10"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT: staging (pre-production validation)
+# ═════════════════════════════════════════════════════════════════════════════
+[env.staging]
+name = "abyssal-twin-staging"
+
+[[env.staging.d1_databases]]
+binding = "FLEET_DB"
+database_name = "abyssal-fleet-staging"
+database_id = ""                     # Set via: wrangler d1 create abyssal-fleet-staging
+migrations_dir = "migrations"
+
+[[env.staging.r2_buckets]]
+binding = "MISSION_STORE"
+bucket_name = "abyssal-missions-staging"
+
+[[env.staging.durable_objects.bindings]]
+name = "FEDERATION_COORDINATOR"
+class_name = "FederationCoordinator"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+SATELLITE_BANDWIDTH_LIMIT_KBPS = "100"
+BATCH_INTERVAL_SECONDS = "30"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ENVIRONMENT: production (live AUV operations)
+# ═════════════════════════════════════════════════════════════════════════════
+[env.production]
+name = "abyssal-twin"
+
+[[env.production.d1_databases]]
+binding = "FLEET_DB"
+database_name = "abyssal-fleet"
+database_id = ""                     # Set via: wrangler d1 create abyssal-fleet
+migrations_dir = "migrations"
+
+[[env.production.r2_buckets]]
+binding = "MISSION_STORE"
+bucket_name = "abyssal-missions"
+
+[[env.production.durable_objects.bindings]]
+name = "FEDERATION_COORDINATOR"
+class_name = "FederationCoordinator"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+SATELLITE_BANDWIDTH_LIMIT_KBPS = "50"
+BATCH_INTERVAL_SECONDS = "60"
