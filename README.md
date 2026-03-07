@@ -1,9 +1,7 @@
 <div align="center">
 
-<!-- Animated Logo / Header -->
-<img src="https://raw.githubusercontent.com/kakashi3lite/abyssal-twin/main/docs/assets/wave-banner.svg" width="100%" alt="Abyssal Twin Banner">
-
-<h1>Abyssal Twin</h1>
+<!-- Header -->
+<h1>🌊 Abyssal Twin</h1>
 
 <p align="center">
   <b>Federated Digital Twin Infrastructure for Autonomous Underwater Vehicle Fleets</b>
@@ -13,77 +11,66 @@
   <a href="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/ci-master.yml">
     <img src="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/ci-master.yml/badge.svg" alt="CI Status">
   </a>
-  <a href="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/deploy-dashboard.yml">
-    <img src="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/deploy-dashboard.yml/badge.svg" alt="Deploy Status">
+  <a href="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/pages.yml">
+    <img src="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/pages.yml/badge.svg" alt="Deploy Status">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
   </a>
-  <a href="https://cloudflare.com">
-    <img src="https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare" alt="Cloudflare">
-  </a>
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white" alt="Rust">
+  <img src="https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare">
 </p>
 
 <p align="center">
   <a href="#-quick-start">🚀 Quick Start</a> •
-  <a href="#-live-demo">👁️ Live Demo</a> •
+  <a href="#-live-dashboard">👁️ Live Dashboard</a> •
   <a href="#-documentation">📖 Docs</a> •
-  <a href="#-research">🔬 Research</a>
+  <a href="#-research-validation">🔬 Research</a>
 </p>
-
-<!-- Dashboard Preview -->
-<img src="docs/screenshots/dashboard-overview.html" width="100%" alt="Dashboard Preview" style="border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-
-<p align="center"><em>Real-time fleet operations dashboard with sub-second latency</em></p>
 
 </div>
 
 ---
 
-## ✨ What Makes Abyssal Twin Special?
+## 👁️ Live Dashboard
 
-<table>
-<tr>
-<td width="50%">
+<div align="center">
 
-### 🌊 Built for the Ocean
+### 🎛️ Mission Control Dashboard
 
-Operating AUVs in satellite-constrained environments presents unique challenges. Abyssal Twin solves them with:
+[![View Dashboard](https://img.shields.io/badge/🌐_View_Live_Dashboard-2ea44f?style=for-the-badge)](https://kakashi3lite.github.io/abyssal-twin/)
 
-- **🛰️ Satellite-Optimized** — Runs on 50kbps Iridium bandwidth
-- **⚡ Sub-Second Sync** — WebSocket + SSE for real-time telemetry
-- **🔬 Research-Grade** — Validated RQ1/RQ3 metrics built-in
-- **☁️ Edge-Native** — Cloudflare Workers for global low latency
+**URL:** `https://kakashi3lite.github.io/abyssal-twin/`
 
-</td>
-<td width="50%">
+</div>
 
-### 🏆 Production Ready
+### Dashboard Features
 
-From dissertation code to commercial deployment:
+<div align="center">
 
-- **✅ CI/CD Pipeline** — Automated testing & deployment
-- **✅ Type Safe** — TypeScript + Rust with strict checks
-- **✅ Security First** — SLSA Level 3, vulnerability scanning
-- **✅ Observable** — Metrics, logging, alerting built-in
+| Fleet Status | Research Metrics |
+|:------------:|:----------------:|
+| **Real-time AUV tracking** with health scores and latency | **RQ1/RQ3 validation** with export capabilities |
+| <a href="./docs/screenshots/dashboard-overview.html">📊 View Snapshot</a> | <a href="./docs/screenshots/research-metrics.html">📈 View Snapshot</a> |
 
-</td>
-</tr>
-</table>
+</div>
+
+### Screenshot Gallery
+
+Browse all dashboard views:
+👉 **[View Gallery](./docs/screenshots/index.html)**
 
 ---
 
 ## 🚀 Quick Start
 
-### Option 1: View Live Demo
+### Option 1: View Live Demo (Instant)
 
-Experience the dashboard instantly:
-
-<p align="center">
-  <a href="https://kakashi3lite.github.io/abyssal-twin/">
-    <img src="https://img.shields.io/badge/🌐_Open_Live_Demo-2ea44f?style=for-the-badge" alt="Live Demo" height="40">
-  </a>
-</p>
+```bash
+# Open the deployed dashboard
+open https://kakashi3lite.github.io/abyssal-twin/
+```
 
 ### Option 2: Run Locally (2 Minutes)
 
@@ -110,35 +97,36 @@ docker compose up
 # Access:
 # Dashboard: http://localhost:3000
 # API:       http://localhost:8787
-# Metrics:   http://localhost:9090
 ```
 
 ---
 
-## 👁️ Live Demo
+## ✨ What Makes Abyssal Twin Special?
 
-### Dashboard Gallery
+<table>
+<tr>
+<td width="50%">
 
-<div align="center">
+### 🌊 Built for the Ocean
 
-| Fleet Status | Research Metrics |
-|:------------:|:----------------:|
-| ![Fleet](docs/screenshots/dashboard-overview.html) | ![Metrics](docs/screenshots/research-metrics.html) |
-| **Real-time AUV tracking** with health scores | **RQ1/RQ3 validation** with export |
+- **🛰️ Satellite-Optimized** — Runs on 50kbps Iridium bandwidth
+- **⚡ Sub-Second Sync** — WebSocket + SSE for real-time telemetry
+- **🔬 Research-Grade** — Validated RQ1/RQ3 metrics built-in
+- **☁️ Edge-Native** — Cloudflare Workers for global low latency
 
-</div>
+</td>
+<td width="50%">
 
-### Key Features in Action
+### 🏆 Production Ready
 
-```typescript
-// Real-time WebSocket connection
-const ws = new WebSocket('wss://api.abyssal-twin.dev/ws/live');
+- **✅ CI/CD Pipeline** — Automated testing & deployment
+- **✅ Type Safe** — TypeScript + Rust with strict checks
+- **✅ Security First** — SLSA Level 3, vulnerability scanning
+- **✅ Observable** — Metrics, logging, alerting built-in
 
-ws.onmessage = (event) => {
-  const fleet = JSON.parse(event.data);
-  updateDashboard(fleet);  // Sub-second updates
-};
-```
+</td>
+</tr>
+</table>
 
 ---
 
@@ -194,26 +182,9 @@ ws.onmessage = (event) => {
 │   ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐        │
 │   │  AUV-1    │    │  AUV-2    │    │  AUV-3    │    │  Support  │        │
 │   │ (Nautilus)│    │  (Titan)  │    │ (Neptune) │    │  Vessel   │        │
-│   │           │    │           │    │           │    │  (Edge)   │        │
 │   └───────────┘    └───────────┘    └───────────┘    └───────────┘        │
-│                                                                              │
-│   Stonefish Simulator ──► ROS2 ──► Zenoh ──► Cloudflare                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Technology Stack
-
-<div align="center">
-
-| Layer | Technology | Purpose |
-|:-----:|:----------:|:--------|
-| 🎨 **Frontend** | ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white) | Dashboard with HMR |
-| ☁️ **Edge** | ![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?logo=cloudflare&logoColor=white) | Global edge deployment |
-| ⚙️ **Backend** | ![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white) | Federation service |
-| 🔬 **Research** | ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white) | Anomaly detection |
-| 🐳 **Ops** | ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white) | Container deployment |
-
-</div>
 
 ---
 
@@ -225,22 +196,22 @@ ws.onmessage = (event) => {
 📚 Documentation Hub
 │
 ├── 🚀 Getting Started
-│   ├── [Quick Start](docs/quickstart.md) — 5-minute setup
+│   ├── [Quick Start Guide](docs/quickstart.md) — 5-minute setup
 │   ├── [Architecture](docs/architecture.md) — System design
-│   └── [Deployment](docs/deployment/) — Production guides
+│   └── [Deployment](docs/deployment/) — Production deployment
 │
 ├── 🔬 Research
-│   ├── [RQ1: Compression](docs/rq1-compression.md) — 12.4x ratio validation
+│   ├── [RQ1: Compression](docs/rq1-compression.md) — 12.4x compression
 │   ├── [RQ2: Convergence](docs/rq2-convergence.md) — Partition recovery
-│   └── [RQ3: Anomaly Detection](docs/rq3-anomaly.md) — CUSUM validation
+│   └── [RQ3: Anomaly](docs/rq3-anomaly.md) — CUSUM validation
 │
 ├── 💻 Development
-│   ├── [API Reference](docs/api/) — REST & WebSocket docs
-│   ├── [Contributing](CONTRIBUTING.md) — Development guide
-│   └── [CI/CD](docs/ci-cd/) — Pipeline documentation
+│   ├── [API Reference](docs/api/)
+│   ├── [Contributing](CONTRIBUTING.md)
+│   └── [CI/CD](docs/ci-cd/)
 │
 └── 🐳 Operations
-    ├── [Docker Setup](docker/README.md)
+    ├── [Docker Setup](docker/)
     ├── [Monitoring](docs/monitoring.md)
     └── [Security](docs/security.md)
 ```
@@ -251,48 +222,35 @@ ws.onmessage = (event) => {
 
 ### Dissertation-Grade Research
 
-Abyssal Twin validates three core research questions from the IoRT-DT dissertation:
+Abyssal Twin validates three core research questions:
 
 #### RQ1: Compression & Synchronization
 
 <div align="center">
 
-| Compression | Baseline | Compressed | Ratio |
-|:-----------:|:--------:|:----------:|:-----:|
-| ROS2 PoseStamped | 1,200 bytes | **24 bytes** | **12.4x** ✅ |
-| Mission State | 8,400 bytes | **47 bytes** | **178x** ✅ |
+| Metric | Baseline | Compressed | Ratio |
+|:------:|:--------:|:----------:|:-----:|
+| ROS2 Pose | 1,200 bytes | **24 bytes** | **12.4x** ✅ |
 
 </div>
-
-> **Validation:** Property-based testing with Hypothesis, Stonefish simulation
 
 #### RQ2: Partition Recovery
 
 ```
-Network Partition Detected
-        │
-        ▼
-┌─────────────────┐
-│ 45s Convergence │ ◄── Target: <60s ✅
-│ 98.7% Coherence │ ◄── Target: >95% ✅
-└─────────────────┘
+Network Partition → 45s Convergence → 98.7% Coherence ✅
 ```
-
-> **Validation:** Chaos engineering with network fault injection
 
 #### RQ3: Anomaly Detection
 
 <div align="center">
 
-| Metric | Value | Target | Status |
-|:------:|:-----:|:------:|:------:|
-| ARL₀ (False Alarms) | **12,400 samples** | >10,000 | ✅ |
-| Detection Delay | **8 samples** | <10 | ✅ |
-| Precision | **94.2%** | >90% | ✅ |
+| Metric | Value | Target |
+|:------:|:-----:|:------:|
+| ARL₀ | **12,400** | >10,000 ✅ |
+| Detection | **8 samples** | <10 ✅ |
+| Precision | **94.2%** | >90% ✅ |
 
 </div>
-
-> **Validation:** Statistical hypothesis testing on ROS2 bag data
 
 ---
 
@@ -309,7 +267,6 @@ Validate hypotheses, publish papers
 **Start Here:**
 - [Research Metrics](docs/rq1-compression.md)
 - [Data Export](docs/research/export.md)
-- [Reproducibility](docs/research/reproducibility.md)
 
 </td>
 <td width="25%" align="center">
@@ -319,9 +276,8 @@ Validate hypotheses, publish papers
 Monitor fleet, respond to anomalies
 
 **Start Here:**
-- [Operations Guide](docs/users/operator.md)
-- [Alert Configuration](docs/users/alerts.md)
-- [Mobile Setup](docs/users/mobile.md)
+- [Operations](docs/users/operator.md)
+- [Alerts](docs/users/alerts.md)
 
 </td>
 <td width="25%" align="center">
@@ -331,9 +287,8 @@ Monitor fleet, respond to anomalies
 Optimize costs, track KPIs
 
 **Start Here:**
-- [Executive Dashboard](docs/users/manager.md)
-- [Cost Optimization](docs/users/costs.md)
-- [Performance Reports](docs/users/reports.md)
+- [Dashboard](docs/users/manager.md)
+- [Reports](docs/users/reports.md)
 
 </td>
 <td width="25%" align="center">
@@ -344,8 +299,7 @@ Ensure uptime, debug issues
 
 **Start Here:**
 - [Infrastructure](docs/users/devops.md)
-- [CI/CD Pipeline](docs/ci-cd/)
-- [Security Audit](docs/users/security-audit.md)
+- [CI/CD](docs/ci-cd/)
 
 </td>
 </tr>
@@ -355,16 +309,14 @@ Ensure uptime, debug issues
 
 ## 🤝 Contributing
 
-We welcome contributions from the marine robotics community!
-
 ```bash
 # Clone and setup
 git clone https://github.com/kakashi3lite/abyssal-twin.git
 cd abyssal-twin
-make setup  # Installs all dependencies
+make setup  # Installs dependencies
 
 # Run tests
-make test   # TypeScript + Rust + Python tests
+make test   # TypeScript + Rust + Python
 
 # Start development
 make dev    # Full stack with hot reload
@@ -376,15 +328,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 📄 Citation
 
-If you use Abyssal Twin in your research:
-
 ```bibtex
 @software{abyssal_twin_2024,
-  author = {Kakashi3},
+  author = {kakashi3lite},
   title = {Abyssal Twin: Federated Digital Twins for AUV Fleets},
   year = {2024},
-  url = {https://github.com/kakashi3lite/abyssal-twin},
-  note = {IoRT-DT Dissertation Implementation}
+  url = {https://github.com/kakashi3lite/abyssal-twin}
 }
 ```
 
@@ -402,7 +351,7 @@ Licensed under the Apache License 2.0. See [LICENSE](LICENSE).
 
 ---
 
-Built with ❤️ for the underwater robotics community
+Built with ❤️ by **kakashi3lite** for the underwater robotics community
 
 🌊 *Exploring the ocean, one bit at a time* 🌊
 

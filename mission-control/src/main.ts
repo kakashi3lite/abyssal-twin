@@ -4,11 +4,11 @@
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 
-// Configuration
+// Configuration - uses environment variables for deployment flexibility
 const CONFIG = {
-  API_BASE: 'https://staging.abyssal-twin.dev',
-  WS_URL: 'wss://staging.abyssal-twin.dev/ws/live',
-  SSE_URL: 'https://staging.abyssal-twin.dev/api/v1/fleet/stream',
+  API_BASE: import.meta.env.VITE_API_BASE || 'https://staging.abyssal-twin.dev',
+  WS_URL: import.meta.env.VITE_WS_URL || 'wss://staging.abyssal-twin.dev/ws/live',
+  SSE_URL: import.meta.env.VITE_SSE_URL || 'https://staging.abyssal-twin.dev/api/v1/fleet/stream',
   REFRESH_INTERVAL: 5000,
   MAX_EVENTS: 50,
 };
