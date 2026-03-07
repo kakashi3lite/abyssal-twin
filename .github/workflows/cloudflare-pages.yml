@@ -43,9 +43,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: mission-control/package-lock.json
 
-      - name: Install dependencies
+      - name: Clean install dependencies
         working-directory: mission-control
-        run: npm ci
+        run: |
+          # Remove any corrupted node_modules
+          rm -rf node_modules
+          # Use npm install with timeout and better network settings
+          npm install --prefer-offline --no-audit --progress=false
+        env:
+          NPM_CONFIG_TIMEOUT: 120000
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
 
       - name: Build for Cloudflare
         working-directory: mission-control
@@ -108,7 +115,7 @@ jobs:
             --branch="${{ github.ref_name }}" \
             --commit-hash="${{ github.sha }}" \
             --commit-message="${{ github.event.head_commit.message }}" \
-            --compatibility-date="2026-03-06")
+            --compatibility-date="2026-03-06" 2>&1)
           
           echo "$OUTPUT"
           
