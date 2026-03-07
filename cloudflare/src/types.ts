@@ -13,6 +13,8 @@ export interface Env {
   ENVIRONMENT: string;
   SATELLITE_BANDWIDTH_LIMIT_KBPS: string;
   BATCH_INTERVAL_SECONDS: string;
+  /** Allowed CORS origin for the Mission Control frontend. Use "*" only in dev. */
+  ALLOWED_ORIGIN: string;
 }
 
 // ─── Federation State (mirrors Rust FederatedDTState) ───────────────────────

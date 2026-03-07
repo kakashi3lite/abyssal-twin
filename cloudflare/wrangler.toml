@@ -66,6 +66,8 @@ class_name = "FederationCoordinator"
 ENVIRONMENT = "development"
 SATELLITE_BANDWIDTH_LIMIT_KBPS = "1000"
 BATCH_INTERVAL_SECONDS = "10"
+# Wildcard is acceptable for local development only
+ALLOWED_ORIGIN = "*"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # ENVIRONMENT: staging (pre-production validation)
@@ -91,6 +93,7 @@ class_name = "FederationCoordinator"
 ENVIRONMENT = "staging"
 SATELLITE_BANDWIDTH_LIMIT_KBPS = "100"
 BATCH_INTERVAL_SECONDS = "30"
+ALLOWED_ORIGIN = "https://staging.abyssal-twin.dev"
 
 # ═════════════════════════════════════════════════════════════════════════════
 # ENVIRONMENT: production (live AUV operations)
@@ -116,3 +119,5 @@ class_name = "FederationCoordinator"
 ENVIRONMENT = "production"
 SATELLITE_BANDWIDTH_LIMIT_KBPS = "50"
 BATCH_INTERVAL_SECONDS = "60"
+# Set to your Cloudflare Pages URL — never use * in production
+ALLOWED_ORIGIN = "https://abyssal-twin.pages.dev"

@@ -25,7 +25,8 @@ export { FederationCoordinator } from "./federation-coordinator";
 const app = new Hono<{ Bindings: Env }>();
 
 // Global middleware (applied to all routes)
-app.use("*", cors());
+// Origin is read from ALLOWED_ORIGIN env var so each environment restricts to its own frontend.
+app.use("*", (c, next) => cors({ origin: c.env.ALLOWED_ORIGIN ?? "*" })(c, next));
 app.use("*", logger());
 app.use("*", metricsMiddleware());
 

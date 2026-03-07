@@ -87,29 +87,75 @@ export function requireAuth(minimumRole: OperatorRole = "researcher") {
   };
 }
 
+/** Cloudflare Access JWKS keys include `kid` which is not in the TS stdlib JsonWebKey. */
+interface AccessJwk extends JsonWebKey {
+  kid?: string;
+}
+
+// Module-level key cache — survives across requests within the same warm worker instance.
+// Indexed by `kid` from the JWT header; effectively evicted on worker restart (CF manages this).
+const keyCache = new Map<string, CryptoKey>();
+
 /**
- * Validate Cloudflare Access JWT.
- * In production, fetches public keys from the Access certs endpoint.
- * TODO: Cache the public key for performance.
+ * Validate Cloudflare Access JWT using RS256 signature verification.
+ * Fetches JWKS from `<issuer>/cdn-cgi/access/certs` on first use per key ID,
+ * then caches the imported CryptoKey for the lifetime of the worker instance.
  */
 async function validateAccessJWT(jwt: string): Promise<AccessClaims> {
-  // Decode JWT without verification first (to get issuer for key lookup)
   const parts = jwt.split(".");
   if (parts.length !== 3) throw new Error("Malformed JWT");
 
-  const payload = JSON.parse(atob(parts[1]!.replace(/-/g, "+").replace(/_/g, "/")));
+  const decodeB64url = (s: string) => atob(s.replace(/-/g, "+").replace(/_/g, "/"));
 
-  // Basic expiration check
+  // Decode header and payload (no crypto yet — need iss for key lookup)
+  const header = JSON.parse(decodeB64url(parts[0]!)) as { kid?: string; alg?: string };
+  const payload = JSON.parse(decodeB64url(parts[1]!)) as AccessClaims;
+
+  // 1. Expiration check (fast path — avoids unnecessary key fetch on expired tokens)
   if (payload.exp && payload.exp < Date.now() / 1000) {
     throw new Error("Token expired");
   }
+  if (!payload.iss) throw new Error("JWT missing issuer (iss)");
 
-  // In production, verify signature against Cloudflare's public keys:
-  // const certsUrl = `${payload.iss}/cdn-cgi/access/certs`;
-  // const keys = await fetch(certsUrl).then(r => r.json());
-  // ... verify with crypto.subtle.verify()
+  // 2. Fetch Cloudflare Access public keys (JWKS endpoint)
+  const certsUrl = `${payload.iss}/cdn-cgi/access/certs`;
+  const { keys } = await fetch(certsUrl).then((r) => {
+    if (!r.ok) throw new Error(`Failed to fetch Access certs: HTTP ${r.status}`);
+    return r.json<{ keys: AccessJwk[] }>();
+  });
 
-  return payload as AccessClaims;
+  // 3. Select key matching the JWT header's kid, or fall back to first key
+  const jwk = header.kid ? keys.find((k) => k.kid === header.kid) : keys[0];
+  if (!jwk) throw new Error("No matching public key in Cloudflare Access certs");
+
+  const cacheKey = jwk.kid ?? "default";
+
+  // 4. Import + cache the CryptoKey (importKey is expensive; only done once per kid)
+  let cryptoKey = keyCache.get(cacheKey);
+  if (!cryptoKey) {
+    cryptoKey = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    keyCache.set(cacheKey, cryptoKey);
+  }
+
+  // 5. Verify RS256 signature over the signing input "<header_b64>.<payload_b64>"
+  const signingInput = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+  const signature = Uint8Array.from(decodeB64url(parts[2]!), (c) => c.charCodeAt(0));
+
+  const valid = await crypto.subtle.verify(
+    { name: "RSASSA-PKCS1-v1_5" },
+    cryptoKey,
+    signature,
+    signingInput,
+  );
+  if (!valid) throw new Error("JWT signature verification failed");
+
+  return payload;
 }
 
 /** Check if a role meets the minimum required level. */
