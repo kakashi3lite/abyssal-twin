@@ -51,6 +51,7 @@ jobs:
           VITE_API_BASE: ${{ github.event.inputs.environment == 'production' && 'https://api.abyssal-twin.dev' || 'https://staging.abyssal-twin.dev' }}
           VITE_WS_URL: ${{ github.event.inputs.environment == 'production' && 'wss://api.abyssal-twin.dev/ws/live' || 'wss://staging.abyssal-twin.dev/ws/live' }}
           VITE_SSE_URL: ${{ github.event.inputs.environment == 'production' && 'https://api.abyssal-twin.dev/api/v1/fleet/stream' || 'https://staging.abyssal-twin.dev/api/v1/fleet/stream' }}
+          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
 
       - name: Verify build
         working-directory: mission-control
