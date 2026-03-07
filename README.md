@@ -329,10 +329,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## 📄 Citation
 
 ```bibtex
-@software{abyssal_twin_2024,
+@software{abyssal_twin_2026,
   author = {kakashi3lite},
   title = {Abyssal Twin: Federated Digital Twins for AUV Fleets},
-  year = {2024},
+  year = {2026},
   url = {https://github.com/kakashi3lite/abyssal-twin}
 }
 ```

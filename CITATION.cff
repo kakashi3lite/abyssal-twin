@@ -1,108 +1,16 @@
 cff-version: 1.2.0
-title: "IoRT-DT: Federated Digital Twins for Autonomous Underwater Vehicle Fleets"
-message: >-
-  If you use this software, please cite it using the metadata below.
-  This software accompanies the PhD dissertation at University of Nebraska at Omaha.
+message: "If you use this software, please cite it as below."
 type: software
+title: "Abyssal Twin: Federated Digital Twin Infrastructure for AUV Fleets"
 authors:
-  - family-names: Tanavade
-    given-names: Swanand
-    affiliation: "University of Nebraska at Omaha, College of Information Science & Technology"
-    email: s.tanavade@unomaha.edu
-    orcid: "https://orcid.org/0000-XXXX-XXXX-XXXX"
-identifiers:
-  - type: doi
-    value: 10.5281/zenodo.placeholder
-    description: "Zenodo archive (Placeholder — update on release)"
-repository-code: "https://github.com/swanand-tanavade/iort-dt"
-url: "https://github.com/swanand-tanavade/iort-dt"
-abstract: >-
-  IoRT-DT (Internet of Robotic Things — Digital Twins) is an open-source federated
-  digital twin framework for autonomous underwater vehicle (AUV) fleets. It implements
-  four research contributions: (1) acoustic-constrained DT synchronization with
-  information-theoretic bounds (RQ1), (2) gossip-based federated DT coordination with
-  partition tolerance (RQ2), (3) physics-informed anomaly detection using CUSUM and
-  Shiryaev-Roberts detectors with formal ARL guarantees (RQ3), and (4) DDS/SROS2
-  security hardening for acoustic channel constraints (RQ4). Built on ROS 2 Jazzy,
-  Stonefish simulator, and Zenoh middleware.
+  - family-names: "kakashi3lite"
+date-released: 2026-03-06
+url: "https://github.com/kakashi3lite/abyssal-twin"
+repository-code: "https://github.com/kakashi3lite/abyssal-twin"
+license: Apache-2.0
 keywords:
   - "autonomous underwater vehicles"
   - "digital twins"
-  - "internet of things"
-  - "federated systems"
-  - "ROS2"
-  - "anomaly detection"
-  - "acoustic communication"
-  - "cybersecurity"
-  - "ocean robotics"
-  - "CUSUM"
-license: Apache-2.0
-version: "1.0.0"
-date-released: "2027-01-01"
-
-preferred-citation:
-  type: thesis
-  authors:
-    - family-names: Tanavade
-      given-names: Swanand
-  title: "Federated Digital Twin Architectures for Autonomous Underwater Vehicle Fleets"
-  institution:
-    name: "University of Nebraska at Omaha"
-    address: "Omaha, NE 68182, USA"
-  thesis-type: "PhD thesis"
-  year: 2029
-
-references:
-  - type: article
-    authors:
-      - family-names: Yu
-        given-names: Z.
-      - family-names: Sakaguchi
-        given-names: K.
-      - family-names: Saad
-        given-names: W.
-    title: "Internet of Federated Digital Twins (IoFDT): Connecting Twins Beyond Borders for Society 5.0"
-    journal: "IEEE IoT Magazine"
-    year: 2024
-
-  - type: article
-    authors:
-      - family-names: Yan
-        given-names: J.
-    title: "Digital Twin-Driven Swarm of Autonomous Underwater Vehicles for Marine Exploration"
-    journal: "Nature Communications Engineering"
-    volume: 5
-    issue: 18
-    year: 2026
-
-  - type: article
-    authors:
-      - family-names: Kaarlela
-        given-names: T.
-    title: "Underwater Digital Twin Applications: A Systematic Literature Review"
-    journal: "Digital Twin (Taylor & Francis)"
-    year: 2026
-
-  - type: conference-paper
-    authors:
-      - family-names: Deng
-        given-names: G.
-    title: "On the (In)Security of Secure ROS2"
-    collection-title: "Proceedings of ACM CCS 2022"
-    year: 2022
-
-  - type: conference-paper
-    authors:
-      - family-names: Grimaldi
-        given-names: M.
-    title: "Stonefish: Supporting Machine Learning Research in Marine Robotics"
-    collection-title: "IEEE ICRA 2025"
-    year: 2025
-
-  - type: conference-paper
-    authors:
-      - family-names: Buchholz
-        given-names: B.
-    title: "AURA: A Collaborative Reasoning Framework for Anomaly Diagnostics in Underwater Robotics"
-    year: 2025
-    note: "arXiv:2511.03075"
+  - "federation"
+  - "cloudflare workers"
+  - "real-time systems"
