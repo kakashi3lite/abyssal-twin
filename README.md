@@ -10,8 +10,8 @@
   <a href="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/ci-master.yml">
     <img src="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/ci-master.yml/badge.svg" alt="CI Status">
   </a>
-  <a href="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/github-pages.yml">
-    <img src="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/github-pages.yml/badge.svg" alt="GitHub Pages">
+  <a href="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/cloudflare-pages.yml">
+    <img src="https://github.com/kakashi3lite/abyssal-twin/actions/workflows/cloudflare-pages.yml/badge.svg" alt="Cloudflare Deploy">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="#-live-dashboard">🌐 Live Dashboard</a> •
+  <a href="https://abyssal-mission-control.pages.dev/">🌐 Live Dashboard</a> •
   <a href="#-quick-start">🚀 Quick Start</a> •
   <a href="#-documentation">📖 Docs</a> •
   <a href="#-research-validation">🔬 Research</a>
@@ -35,12 +35,13 @@
 
 ### 🎛️ Mission Control Dashboard
 
-Access the live dashboard at either deployment:
+**Primary Deployment (Cloudflare Pages):**
 
-| Platform | URL | Status |
-|:--------:|:---|:------:|
-| **GitHub Pages** | [kakashi3lite.github.io/abyssal-twin](https://kakashi3lite.github.io/abyssal-twin/) | ✅ Active |
-| **Cloudflare Pages** | [abyssal-mission-control.pages.dev](https://abyssal-mission-control.pages.dev/) | ⚡ Fast |
+[![View Dashboard](https://img.shields.io/badge/🌐_View_Live_Dashboard-2ea44f?style=for-the-badge)](https://abyssal-mission-control.pages.dev/)
+
+**URL:** `https://abyssal-mission-control.pages.dev/`
+
+**Mirror (GitHub Pages):** [kakashi3lite.github.io/abyssal-twin](https://kakashi3lite.github.io/abyssal-twin/)
 
 </div>
 
@@ -51,7 +52,7 @@ Access the live dashboard at either deployment:
 | Fleet Status | Research Metrics |
 |:------------:|:----------------:|
 | Real-time AUV tracking with health scores | RQ1/RQ3 validation with export |
-| [View Snapshot](docs/screenshots/dashboard-overview.html) | [View Snapshot](docs/screenshots/research-metrics.html) |
+| [View Snapshot](https://abyssal-mission-control.pages.dev/docs/screenshots/dashboard-overview.html) | [View Snapshot](https://abyssal-mission-control.pages.dev/docs/screenshots/research-metrics.html) |
 
 </div>
 
@@ -61,7 +62,9 @@ Access the live dashboard at either deployment:
 
 ### Option 1: View Live Demo
 
-Click either link above to see the deployed dashboard.
+**Primary:** [abyssal-mission-control.pages.dev](https://abyssal-mission-control.pages.dev/) (Cloudflare)
+
+**Mirror:** [kakashi3lite.github.io/abyssal-twin](https://kakashi3lite.github.io/abyssal-twin/) (GitHub)
 
 ### Option 2: Run Locally
 
@@ -88,7 +91,7 @@ docker compose up
 - **🛰️ Satellite-Optimized** — Runs on 50kbps Iridium bandwidth
 - **⚡ Real-Time** — WebSocket + SSE for sub-second telemetry
 - **🔬 Research-Grade** — Validated RQ1/RQ3 metrics built-in
-- **☁️ Multi-Platform** — Deploy to GitHub Pages or Cloudflare
+- **☁️ Edge-Deployed** — Cloudflare Pages global CDN
 
 ---
 
@@ -110,7 +113,7 @@ docker compose up
 ## 🏗️ Architecture
 
 ```
-Dashboard (GitHub/Cloudflare Pages)
+Dashboard (Cloudflare Pages)
          │
          ▼
 ┌─────────────────────┐
@@ -136,6 +139,7 @@ Dashboard (GitHub/Cloudflare Pages)
 - [Architecture](docs/architecture.md)
 - [API Reference](docs/api/)
 - [Research Validation](docs/rq1-compression.md)
+- [Deployment Guide](DEPLOYMENT_GUIDE.md)
 
 ---
 
@@ -146,14 +150,6 @@ Dissertation-grade validation for IoRT-DT:
 - **RQ1:** 12.4x compression ratio (24 bytes vs 1,200 bytes)
 - **RQ2:** <60s partition recovery with 98.7% coherence
 - **RQ3:** CUSUM anomaly detection with ARL₀ >10,000
-
----
-
-## 💼 Use Cases
-
-- **Research Scientists** — One-click data export, reproducibility
-- **AUV Operators** — Real-time fleet monitoring, alerts
-- **Fleet Managers** — Cost optimization, performance KPIs
 
 ---
 
