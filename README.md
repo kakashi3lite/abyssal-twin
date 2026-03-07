@@ -274,6 +274,51 @@ GET  /api/v1/export/summary     → Research metrics
 
 ---
 
+## 🚀 Deployment
+
+### GitHub Pages (Primary)
+
+The dashboard auto-deploys to GitHub Pages on every push to `main`:
+
+```bash
+# Required Secret: VITE_MAPBOX_TOKEN
+# Settings → Secrets and variables → Actions → New repository secret
+```
+
+🔗 **https://kakashi3lite.github.io/abyssal-twin/**
+
+### Cloudflare Pages (Edge CDN)
+
+For global edge deployment with DDoS protection:
+
+1. **Create Cloudflare Pages project**:
+   - Go to Cloudflare Dashboard → Pages → Create project
+   - Connect GitHub repository
+
+2. **Configure build settings**:
+   ```
+   Build command: cd mission-control && npm run build
+   Build output: mission-control/dist
+   Root directory: /
+   ```
+
+3. **Add environment variables**:
+   ```
+   VITE_MAPBOX_TOKEN = pk.eyJ... (your Mapbox public token)
+   VITE_API_BASE = https://api.abyssal-twin.dev
+   VITE_WS_URL = wss://api.abyssal-twin.dev/ws/live
+   VITE_SSE_URL = https://api.abyssal-twin.dev/api/v1/fleet/stream
+   ```
+
+4. **Or use GitHub Actions** (requires secrets):
+   - `CLOUDFLARE_API_TOKEN` — from Cloudflare API Tokens
+   - `CLOUDFLARE_ACCOUNT_ID` — from Cloudflare dashboard sidebar
+   - `VITE_MAPBOX_TOKEN` — your Mapbox public token
+
+🔗 **https://abyssal-twin.pages.dev** (example)
+
+---
+
 ## 🛠️ Development
 
 ### Prerequisites

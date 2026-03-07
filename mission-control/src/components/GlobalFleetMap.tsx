@@ -3,36 +3,25 @@
  * 
  * Enterprise-grade geospatial fleet command center.
  * Transforms AUV telemetry into actionable global situational awareness.
- * 
- * Commercial Value:
- * - Provides mission commanders with instant fleet status across ocean basins
- * - Color-coded clustering enables rapid threat assessment
- * - Drill-down from global view to individual AUV 3D visualization
- * - Supports 100+ assets with performance-optimized rendering
- * 
- * Tech Stack: react-map-gl (Mapbox GL JS) + deck.gl for performant layer rendering
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import type { Vehicle, StateVector } from '../types';
+import Map, { Marker, NavigationControl, Popup } from 'react-map-gl';
+import type { MapRef } from 'react-map-gl';
+import type { Vehicle } from '../types';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
 // ============================================
 // TYPES & INTERFACES
 // ============================================
 
 export interface FleetAsset extends Vehicle {
-  /** Geospatial coordinates (WGS84) */
   latitude: number;
   longitude: number;
-  /** Operational region (for clustering) */
   region: 'atlantic' | 'pacific' | 'indian' | 'arctic' | 'southern' | 'mediterranean';
-  /** Mission assignment */
   missionId: string | null;
-  /** Current operational mode */
   operationalMode: 'survey' | 'transit' | 'hover' | 'emergency' | 'docked';
-  /** Estimated time to point of no return (minutes) */
   etPnr: number | null;
-  /** Asset dollar value for risk calculations */
   assetValue: number;
 }
 
@@ -55,17 +44,11 @@ export interface FleetCluster {
 export type AlertLevel = 'normal' | 'warning' | 'critical' | 'emergency';
 
 export interface GlobalFleetMapProps {
-  /** Fleet assets to display */
   assets: FleetAsset[];
-  /** Mapbox API token */
   mapboxToken: string;
-  /** Callback when asset selected */
   onAssetSelect?: (asset: FleetAsset) => void;
-  /** Callback when cluster selected (zoom in) */
   onClusterSelect?: (cluster: FleetCluster) => void;
-  /** Real-time alert stream */
   activeAlerts?: FleetAlert[];
-  /** Enable/disable specific layers */
   layerVisibility?: LayerVisibility;
 }
 
@@ -89,13 +72,11 @@ export interface LayerVisibility {
 }
 
 // ============================================
-// CONSTANTS & CONFIGURATION
+// CONSTANTS
 // ============================================
 
-const DEFAULT_CENTER = { lat: 25, lng: -40 };
-const DEFAULT_ZOOM = 2;
-const CLUSTER_RADIUS_KM = 50;
-const CLUSTER_ZOOM_THRESHOLD = 6;
+const CLUSTER_RADIUS_KM = 500;
+const CLUSTER_ZOOM_THRESHOLD = 5;
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -139,7 +120,7 @@ interface AssetMarkerProps {
   onClick: () => void;
 }
 
-export const AssetMarker: React.FC<AssetMarkerProps> = React.memo(({ asset, isSelected, onClick }) => {
+const AssetMarker: React.FC<AssetMarkerProps> = ({ asset, isSelected, onClick }) => {
   const alertLevel = calculateAlertLevel(asset);
   const color = getAlertColor(alertLevel);
   
@@ -153,44 +134,30 @@ export const AssetMarker: React.FC<AssetMarkerProps> = React.memo(({ asset, isSe
         <div className="absolute inset-0 rounded-full animate-ping opacity-75" style={{ backgroundColor: color }} />
       )}
       <div 
-        className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-white shadow-lg transition-all"
+        className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-lg transition-all"
         style={{ backgroundColor: color }}
       >
-        <div className="w-3 h-3 bg-white rounded-full" />
+        <div className="w-2 h-2 bg-white rounded-full" />
       </div>
       {isSelected && <div className="absolute -inset-2 border-2 border-white rounded-full animate-pulse" />}
-      
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-        <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
-          <div className="font-semibold">{asset.name}</div>
-          <div className="text-slate-400">{asset.type.toUpperCase()}</div>
-          {asset.etPnr !== null && (
-            <div className={asset.etPnr <= 10 ? 'text-red-400 font-bold' : 'text-slate-300'}>
-              PNR: {Math.max(0, asset.etPnr).toFixed(0)} min
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
-});
-
-AssetMarker.displayName = 'AssetMarker';
+};
 
 interface ClusterMarkerProps {
   cluster: FleetCluster;
   onClick: () => void;
 }
 
-export const ClusterMarker: React.FC<ClusterMarkerProps> = React.memo(({ cluster, onClick }) => {
-  const { statusSummary, count, totalValue } = cluster;
+const ClusterMarker: React.FC<ClusterMarkerProps> = ({ cluster, onClick }) => {
+  const { statusSummary, count } = cluster;
   const alertLevel: AlertLevel = 
-    (statusSummary as any).emergency > 0 ? 'emergency' :
+    statusSummary.emergency > 0 ? 'emergency' :
     statusSummary.critical > 0 ? 'critical' :
     statusSummary.warning > 0 ? 'warning' : 'normal';
   
   const color = getAlertColor(alertLevel);
-  const size = Math.min(80, 30 + count * 3);
+  const size = Math.min(64, 32 + count * 2);
   
   return (
     <div 
@@ -202,21 +169,18 @@ export const ClusterMarker: React.FC<ClusterMarkerProps> = React.memo(({ cluster
         className="w-full h-full rounded-full flex flex-col items-center justify-center border-2 border-white shadow-xl"
         style={{ backgroundColor: color }}
       >
-        <span className="text-white font-bold text-lg leading-none">{count}</span>
-        <span className="text-white/80 text-[10px] uppercase">Assets</span>
+        <span className="text-white font-bold text-base leading-none">{count}</span>
       </div>
       
       {(statusSummary.critical > 0 || statusSummary.warning > 0) && (
         <div className="absolute -bottom-1 -right-1 flex -space-x-1">
-          {statusSummary.critical > 0 && <div className="w-4 h-4 bg-red-500 rounded-full border border-white" />}
-          {statusSummary.warning > 0 && <div className="w-4 h-4 bg-yellow-500 rounded-full border border-white" />}
+          {statusSummary.critical > 0 && <div className="w-3 h-3 bg-red-500 rounded-full border border-white" />}
+          {statusSummary.warning > 0 && <div className="w-3 h-3 bg-yellow-500 rounded-full border border-white" />}
         </div>
       )}
     </div>
   );
-});
-
-ClusterMarker.displayName = 'ClusterMarker';
+};
 
 // ============================================
 // MAIN COMPONENT
@@ -230,14 +194,18 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
   activeAlerts = [],
   layerVisibility = { assets: true, clusters: true, tracks: false, missionBoundaries: true, heatmap: false },
 }) => {
+  const mapRef = React.useRef<MapRef>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null);
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
-  const [center, setCenter] = useState(DEFAULT_CENTER);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  
+  const [hoveredAsset, setHoveredAsset] = useState<FleetAsset | null>(null);
+  const [viewState, setViewState] = useState({
+    longitude: -40,
+    latitude: 25,
+    zoom: 2
+  });
+
   // Calculate clusters
   const clusters = useMemo((): FleetCluster[] => {
-    if (!layerVisibility.clusters || zoom >= CLUSTER_ZOOM_THRESHOLD) return [];
+    if (!layerVisibility.clusters || viewState.zoom >= CLUSTER_ZOOM_THRESHOLD) return [];
     
     const clusters: FleetCluster[] = [];
     const processed = new Set<number>();
@@ -270,122 +238,98 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
       }
     }
     return clusters;
-  }, [assets, layerVisibility.clusters, zoom]);
-  
+  }, [assets, layerVisibility.clusters, viewState.zoom]);
+
   const unclusteredAssets = useMemo(() => {
     const clusteredIds = new Set(clusters.flatMap(c => c.assets.map(a => a.id)));
     return assets.filter(a => !clusteredIds.has(a.id));
   }, [assets, clusters]);
-  
+
   const handleClusterClick = useCallback((cluster: FleetCluster) => {
-    setCenter({ lat: cluster.latitude, lng: cluster.longitude });
-    setZoom(CLUSTER_ZOOM_THRESHOLD + 1);
+    mapRef.current?.flyTo({
+      center: [cluster.longitude, cluster.latitude],
+      zoom: CLUSTER_ZOOM_THRESHOLD + 2,
+      duration: 1000
+    });
     onClusterSelect?.(cluster);
   }, [onClusterSelect]);
-  
+
   const handleAssetClick = useCallback((asset: FleetAsset) => {
     setSelectedAssetId(asset.id);
     onAssetSelect?.(asset);
   }, [onAssetSelect]);
-  
-  // Fit to fleet bounds
+
+  // Fit bounds to assets when loaded
   useEffect(() => {
-    if (assets.length > 0 && !mapLoaded) {
+    if (assets.length > 0 && mapRef.current) {
       const lats = assets.map(a => a.latitude);
       const lngs = assets.map(a => a.longitude);
-      setCenter({
-        lat: (Math.min(...lats) + Math.max(...lats)) / 2,
-        lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-      });
-      setMapLoaded(true);
+      const bounds: [[number, number], [number, number]] = [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)]
+      ];
+      mapRef.current.fitBounds(bounds, { padding: 100, duration: 1500 });
     }
-  }, [assets, mapLoaded]);
-  
-  // Generate Mapbox GL style URL
-  const mapStyle = 'mapbox://styles/mapbox/dark-v11';
-  
-  // Convert lat/lng to pixel position (simplified projection)
-  const latLngToPixel = (lat: number, lng: number) => {
-    const worldSize = 512 * Math.pow(2, zoom);
-    const x = (lng + 180) / 360 * worldSize;
-    const y = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * worldSize;
-    const centerX = (center.lng + 180) / 360 * worldSize;
-    const centerY = (1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * worldSize;
-    return { x: x - centerX + 400, y: y - centerY + 250 };
-  };
-  
+  }, [assets]);
+
+  // Filter alerts for assets
+  const assetAlerts = useMemo(() => {
+    const alertMap: Map<number, FleetAlert[]> = new globalThis.Map();
+    activeAlerts.forEach((alert: FleetAlert) => {
+      const list = alertMap.get(alert.assetId) || [];
+      list.push(alert);
+      alertMap.set(alert.assetId, list);
+    });
+    return alertMap;
+  }, [activeAlerts]);
+
   if (!mapboxToken) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-slate-900 text-slate-400">
-        <div className="text-center">
+        <div className="text-center p-8">
           <div className="text-4xl mb-4">🗺️</div>
-          <p>Mapbox API token required for geospatial view</p>
+          <p className="text-lg font-medium">Mapbox API token required</p>
           <p className="text-sm mt-2">Set VITE_MAPBOX_TOKEN environment variable</p>
-          
-          {/* Fallback list view */}
-          <div className="mt-8 text-left max-w-md mx-auto">
-            <h3 className="text-slate-200 font-semibold mb-4">Fleet Status (List View)</h3>
-            <div className="space-y-2">
-              {assets.map(asset => (
-                <div 
-                  key={asset.id} 
-                  className="p-3 bg-slate-800 rounded-lg flex items-center justify-between cursor-pointer hover:bg-slate-700"
-                  onClick={() => handleAssetClick(asset)}
-                >
-                  <div>
-                    <div className="text-slate-200 font-medium">{asset.name}</div>
-                    <div className="text-xs text-slate-500">{asset.region} • {asset.operationalMode}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: getAlertColor(calculateAlertLevel(asset)) }}
-                    />
-                    {asset.etPnr !== null && (
-                      <span className={`text-xs ${asset.etPnr <= 10 ? 'text-red-400' : 'text-slate-400'}`}>
-                        PNR: {Math.max(0, asset.etPnr).toFixed(0)}m
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     );
   }
-  
+
   return (
-    <div className="relative w-full h-full bg-slate-900">
-      <iframe
-        src={`https://api.mapbox.com/styles/v1/mapbox/dark-v11.html?title=false&access_token=${mapboxToken}#${zoom}/${center.lat}/${center.lng}`}
-        className="w-full h-full border-0"
-        allow="fullscreen"
-      />
-      
-      {/* Overlay markers */}
-      <div className="absolute inset-0 pointer-events-none">
-        {layerVisibility.clusters && clusters.map(cluster => {
-          const pos = latLngToPixel(cluster.latitude, cluster.longitude);
-          return (
-            <div 
-              key={cluster.id}
-              className="absolute pointer-events-auto"
-              style={{ left: pos.x, top: pos.y }}
-            >
-              <ClusterMarker cluster={cluster} onClick={() => handleClusterClick(cluster)} />
-            </div>
-          );
-        })}
-        
-        {(zoom >= CLUSTER_ZOOM_THRESHOLD || !layerVisibility.clusters) && unclusteredAssets.map(asset => {
-          const pos = latLngToPixel(asset.latitude, asset.longitude);
-          return (
-            <div 
-              key={asset.id}
-              className="absolute pointer-events-auto"
-              style={{ left: pos.x, top: pos.y }}
+    <div className="relative w-full h-full">
+      <Map
+        ref={mapRef}
+        {...viewState}
+        onMove={evt => setViewState(evt.viewState)}
+        mapboxAccessToken={mapboxToken}
+        mapStyle="mapbox://styles/mapbox/dark-v11"
+        style={{ width: '100%', height: '100%' }}
+        attributionControl={false}
+      >
+        {/* Navigation controls */}
+        <NavigationControl position="bottom-right" />
+
+        {/* Cluster markers */}
+        {layerVisibility.clusters && clusters.map(cluster => (
+          <Marker
+            key={cluster.id}
+            longitude={cluster.longitude}
+            latitude={cluster.latitude}
+          >
+            <ClusterMarker cluster={cluster} onClick={() => handleClusterClick(cluster)} />
+          </Marker>
+        ))}
+
+        {/* Individual asset markers */}
+        {(viewState.zoom >= CLUSTER_ZOOM_THRESHOLD || !layerVisibility.clusters) && unclusteredAssets.map(asset => (
+          <Marker
+            key={asset.id}
+            longitude={asset.longitude}
+            latitude={asset.latitude}
+          >
+            <div
+              onMouseEnter={() => setHoveredAsset(asset)}
+              onMouseLeave={() => setHoveredAsset(null)}
             >
               <AssetMarker 
                 asset={asset} 
@@ -393,21 +337,61 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
                 onClick={() => handleAssetClick(asset)}
               />
             </div>
-          );
-        })}
-      </div>
-      
-      {/* Alert banner */}
+          </Marker>
+        ))}
+
+        {/* Hover popup */}
+        {hoveredAsset && (
+          <Popup
+            longitude={hoveredAsset.longitude}
+            latitude={hoveredAsset.latitude}
+            offset={[0, -20]}
+            closeButton={false}
+            anchor="bottom"
+          >
+            <div className="p-2 min-w-[180px]">
+              <div className="font-semibold text-slate-800">{hoveredAsset.name}</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wide">{hoveredAsset.type}</div>
+              <div className="mt-2 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Region:</span>
+                  <span className="text-slate-700 capitalize">{hoveredAsset.region}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mode:</span>
+                  <span className="text-slate-700 capitalize">{hoveredAsset.operationalMode}</span>
+                </div>
+                {hoveredAsset.etPnr !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">PNR:</span>
+                    <span className={hoveredAsset.etPnr <= 10 ? 'text-red-600 font-semibold' : 'text-slate-700'}>
+                      {Math.max(0, hoveredAsset.etPnr).toFixed(0)} min
+                    </span>
+                  </div>
+                )}
+                {assetAlerts.get(hoveredAsset.id)?.map(alert => (
+                  <div key={alert.id} className="text-red-600 font-medium mt-1">
+                    ⚠ {alert.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Popup>
+        )}
+      </Map>
+
+      {/* Alert overlay */}
       {activeAlerts.length > 0 && (
-        <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
+        <div className="absolute top-4 left-4 right-16 z-10 space-y-2">
           {activeAlerts.slice(0, 3).map(alert => (
             <div 
               key={alert.id}
               className={`
-                flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border-l-4
-                ${alert.severity === 'emergency' ? 'bg-red-950/95 border-red-500' : ''}
-                ${alert.severity === 'critical' ? 'bg-orange-950/95 border-orange-500' : ''}
-                ${alert.severity === 'warning' ? 'bg-yellow-950/95 border-yellow-500' : ''}
+                flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border-l-4 backdrop-blur-sm
+                ${alert.severity === 'emergency' ? 'bg-red-950/90 border-red-500' : ''}
+                ${alert.severity === 'critical' ? 'bg-orange-950/90 border-orange-500' : ''}
+                ${alert.severity === 'warning' ? 'bg-yellow-950/90 border-yellow-500' : ''}
+                ${alert.severity === 'normal' ? 'bg-slate-900/90 border-slate-500' : ''}
               `}
             >
               <div className="flex-1">
@@ -418,21 +402,13 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
           ))}
         </div>
       )}
-      
-      {/* Controls */}
-      <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-2">
-        <button 
-          onClick={() => setZoom(z => Math.min(z + 1, 18))}
-          className="w-10 h-10 bg-slate-900/95 text-white rounded-lg shadow-xl border border-slate-700 hover:bg-slate-800"
-        >
-          +
-        </button>
-        <button 
-          onClick={() => setZoom(z => Math.max(z - 1, 1))}
-          className="w-10 h-10 bg-slate-900/95 text-white rounded-lg shadow-xl border border-slate-700 hover:bg-slate-800"
-        >
-          −
-        </button>
+
+      {/* Asset count badge */}
+      <div className="absolute top-4 right-4 z-10">
+        <div className="bg-slate-900/90 backdrop-blur-sm text-white px-4 py-2 rounded-lg shadow-lg border border-slate-700">
+          <span className="text-2xl font-bold">{assets.length}</span>
+          <span className="text-slate-400 text-sm ml-2">Assets</span>
+        </div>
       </div>
     </div>
   );
