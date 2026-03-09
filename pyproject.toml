@@ -17,7 +17,7 @@ fastavro = "^1.9.0"         # Avro codec for state compression
 lz4 = "^4.3.0"              # LZ4 compression
 numba = "^0.59.0"           # JIT for detection algorithms
 matplotlib = "^3.8.0"       # Paper figure generation
-mlflow = "^2.10.0"          # Experiment tracking
+mlflow = "^3.10.1"          # Experiment tracking
 prometheus-client = "^0.20.0"
 eclipse-zenoh = "^1.0.0"    # Python Zenoh bindings
 
