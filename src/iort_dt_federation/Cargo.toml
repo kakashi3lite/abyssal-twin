@@ -17,7 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 # Zenoh for peer-to-peer DT state exchange
-zenoh = { version = "1.0", features = ["default"] }
+zenoh = { version = "1.8", features = ["default"] }
 
 # Serialization (compact binary for acoustic transmission)
 serde = { version = "1.0", features = ["derive"] }
