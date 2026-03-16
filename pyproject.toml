@@ -15,17 +15,17 @@ numpy = "^1.26.0"
 scipy = "^1.12.0"
 fastavro = "^1.9.0"         # Avro codec for state compression
 lz4 = "^4.3.0"              # LZ4 compression
-numba = "^0.59.0"           # JIT for detection algorithms
+numba = "^0.64.0"           # JIT for detection algorithms
 matplotlib = "^3.8.0"       # Paper figure generation
 mlflow = "^2.10.0"          # Experiment tracking
-prometheus-client = "^0.20.0"
-eclipse-zenoh = "^1.0.0"    # Python Zenoh bindings
+prometheus-client = "^0.24.1"
+eclipse-zenoh = "^1.8.0"    # Python Zenoh bindings
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 pytest-timeout = "^2.3.0"
 hypothesis = "^6.100.0"     # Property-based testing (formal validation)
-ruff = "^0.3.0"
+ruff = "^0.15.6"
 mypy = "^1.9.0"
 pre-commit = "^3.7.0"
 jupyter = "^1.0.0"
