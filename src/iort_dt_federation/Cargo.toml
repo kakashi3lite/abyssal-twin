@@ -17,7 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 # Zenoh for peer-to-peer DT state exchange
-zenoh = { version = "1.0", features = ["default"] }
+zenoh = { version = "1.8", features = ["default"] }
 
 # Serialization (compact binary for acoustic transmission)
 serde = { version = "1.0", features = ["derive"] }
@@ -45,7 +45,7 @@ sha2 = "0.10"
 
 [dev-dependencies]
 tokio-test = "0.4"
-proptest = "1.4"  # Property-based testing equivalent to Python Hypothesis
+proptest = "1.11"  # Property-based testing equivalent to Python Hypothesis
 
 [profile.release]
 opt-level = 3
