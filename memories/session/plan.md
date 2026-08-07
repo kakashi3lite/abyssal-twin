@@ -2,6 +2,32 @@
 
 > Loaded first by the Abyssal Architect agent on every task. Keep concise and current.
 
+## Current Phase: 8.6 — GitHub Sync + Deployment from GitHub (2026-08-08)
+
+**Status: ✅ REPO SYNCED** — all work committed (`934d0ae` + `628a92c`) and pushed to
+`github.com/kakashi3lite/abyssal-twin` (origin/main == HEAD). README updated with
+production URLs, same-origin config, measured RQ2 results.
+
+### Deployment from GitHub — TWO ACCOUNT-LEVEL BLOCKERS (need user action)
+Workflows are registered and trigger on push, but jobs do not start:
+1. **GitHub account billing lock** — Actions annotation: *"The job was not started
+   because your account is locked due to a billing issue."* Fix in GitHub Settings →
+   Billing (resolve the outstanding billing issue).
+2. **Misspelled repo secrets** — repo has `CLOUDFARE_API_TOKEN` / `CLOUDFARE_ACCOUNT_ID`
+   (missing the L); workflows reference `secrets.CLOUDFLARE_API_TOKEN` (correct).
+   Even after billing is fixed, deploys would be simulated until the user runs:
+   ```bash
+   gh secret set CLOUDFLARE_API_TOKEN   # from Cloudflare API Tokens (Edit Workers)
+   gh secret set CLOUDFLARE_ACCOUNT_ID  # Cloudflare account ID
+   # VITE_MAPBOX_TOKEN already exists (correctly spelled)
+   ```
+   (Values must be entered by the user — secrets must not route through the agent.)
+
+### Gotcha (recurring)
+- External volume (T9) recreates AppleDouble `._*` in `.git/objects/pack/` whenever git
+  writes packs → "non-monotonic index" noise (push still succeeds). Clean with
+  `find .git -name '._*' -delete` after git ops. Git currently healthy (fsck clean).
+
 ## Current Phase: 8.5 — Cloudflare Config Audit + Live Verification (2026-08-08)
 
 **Status: ✅ COMPLETE** — full CF config audited, gaps fixed, live-verified.
