@@ -1,30 +1,29 @@
 # Known Issues & Workarounds
 
 ## RESOLVED: Mapbox Map Not Loading + GitHub Pages Demo (Phase 8.7 — 2026-08-08)
-Production dashboard (`abyssal-twin.dalecabra.com`) rendered "Mapbox API token
-required" because **no valid token was ever baked into the build** — local
-`.env` had `pk.placeholder` and `.env.production` had no `VITE_MAPBOX_TOKEN`.
+**Two distinct causes** — (1) no token, (2) CSP blocking tiles in the browser:
 
-**Fix — hybrid map engine (token required no more):**
-- `GlobalFleetMap.tsx` now renders **Mapbox GL (dark-v11) when a valid `pk.*`
-  token is present**, and falls back to a **token-free MapLibre GL (CARTO dark
-  raster)** otherwise. The map can never show a dead "token required" screen.
-- The real Mapbox public token (`pk.eyJ1Ijoia2FrYXNo...`) is configured in the
-  **gitignored** `mission-control/.env.production` and as the `VITE_MAPBOX_TOKEN`
-  repo secret (GitHub Actions builds). It is a PUBLIC token (designed for client
-  embedding) — for security it should be URL-restricted in the Mapbox dashboard
-  to: `abyssal-twin.dalecabra.com`, `*.workers.dev`, `kakashi3lite.github.io`.
-  Verified valid via Mapbox tokens API (`TokenValid`, usage=pk).
-- Deployed `045a5393` — served bundle `main-BDv_a4k9.js` contains the token;
-  mapbox-gl + maplibre chunks both 200.
+**Cause 2 (the one that mattered for the browser): the Cloudflare `_headers`
+Content-Security-Policy was blocking Mapbox tiles.** Symptom: style loaded
+(attribution "mapbox" visible) + DOM markers rendered, but the basemap stayed a
+dark canvas. The old CSP was `img-src 'self' data: blob:` (no `https:`) and had
+**no `worker-src`** — Mapbox GL decodes vector tiles in a **blob Web Worker**, so
+tile parsing silently failed. Server-side curl always returned 200 for style +
+vector tiles; only the browser honored the CSP.
+- **Fix**: `worker-src 'self' blob:; img-src 'self' data: blob: https:;
+  style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:;`
+  + `Cache-Control: no-cache` on HTML (so header changes propagate; assets keep
+  immutable caching). Deployed `907cb37f`, verified live.
 
-**GitHub Pages demo** (`kakashi3lite.github.io/abyssal-twin/`) previously had no
-backend and dead `api.abyssal-twin.dev` VITE vars → "LINK DOWN" screen.
-- `useFleetSSE` now falls back to the **client-side DemoDataEngine** after 3
-  failed SSE attempts — realistic 4-AUV abyssal mission data, SIMULATION badge
-  kept (provenance honest). `github-pages.yml` uses same-origin VITE_*.
-- `VITE_MAPBOX_TOKEN` secret set (2026-08-07T23:29Z) so the GH Pages map uses
-  Mapbox GL too.
+**Cause 1**: no valid token ever baked (`pk.placeholder` locally) → hybrid engine:
+Mapbox GL (dark-v11) with a valid `pk.*` token, MapLibre GL (CARTO dark, token
+free) otherwise. Real token in gitignored `.env.production` + `VITE_MAPBOX_TOKEN`
+repo secret (set 2026-08-07T23:29Z). URL-restrict in Mapbox dashboard to
+`abyssal-twin.dalecabra.com`, `*.workers.dev`, `kakashi3lite.github.io`.
+
+**GitHub Pages demo**: `useFleetSSE` falls back to the client-side
+`DemoDataEngine` after 3 failed SSE attempts (no backend); `github-pages.yml`
+same-origin VITE_*; SIMULATION badge kept.
 
 ## RESOLVED: Cloudflare Config Audit — Dead Hosts + Obsolete Pages Pipeline (Phase 8.5 — 2026-08-08)
 Full Cloudflare configuration audit with live verification found and fixed:
