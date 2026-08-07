@@ -4,8 +4,7 @@
 
 **Federated Digital Twin Infrastructure for Autonomous Underwater Exploration**
 
-[![Build](https://img.shields.io/badge/build-passing-success?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/kakashi3lite/abyssal-twin/actions)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-▶-blue?style=for-the-badge&logo=github&logoColor=white)](https://kakashi3lite.github.io/abyssal-twin/)
+[![Build](https://img.shields.io/badge/build-passing-success?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/kakashi3lite/abyssal-twin/actions)[![Production](https://img.shields.io/badge/Production-Live%20Worker-00e5ff?style=for-the-badge&logo=cloudflare&logoColor=white)](https://abyssal-twin.swanandtanavade100.workers.dev/)[![Live Demo](https://img.shields.io/badge/Live%20Demo-▶-blue?style=for-the-badge&logo=github&logoColor=white)](https://kakashi3lite.github.io/abyssal-twin/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge&logo=apache&logoColor=white)](./LICENSE)
 
 <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&style=flat-square" alt="TypeScript">
@@ -16,7 +15,9 @@
 
 <br>
 
-[🚀 Launch Dashboard](https://kakashi3lite.github.io/abyssal-twin/) • 
+[🚀 Production Dashboard](https://abyssal-twin.swanandtanavade100.workers.dev/) • 
+[🌐 Access-Protected](https://abyssal-twin.dalecabra.com/) • 
+[🕹️ GitHub Pages Demo](https://kakashi3lite.github.io/abyssal-twin/) • 
 [📖 Documentation](./docs) • 
 [🔧 API Reference](#api-reference) • 
 [📊 Metrics](#research-foundations)
@@ -79,20 +80,25 @@ graph LR
 
 <br>
 
-🔗 **https://kakashi3lite.github.io/abyssal-twin/**
+🔗 **Production (Cloudflare Worker + Access):** https://abyssal-twin.dalecabra.com
+🔗 **Direct (workers.dev):** https://abyssal-twin.swanandtanavade100.workers.dev
+🔗 **Research demo (GitHub Pages):** https://kakashi3lite.github.io/abyssal-twin/
 
 <br>
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| 🗺️ **Global Fleet Map** | Real-time geospatial visualization | ✅ Live |
+| 🗺️ **Global Fleet Map** | Real-time geospatial visualization (Mapbox GL) | ✅ Live |
 | 🛡️ **Safety Engine** | Predictive Point-of-No-Return calculations | ✅ Live |
 | 📼 **Mission Replay** | Black-box forensics with timeline scrubbing | ✅ Live |
+| 🦀 **Rust-WASM Engine** | Browser-side Kalman / CUSUM / PNR / 47-byte decode | ✅ Live |
 | 📊 **Fleet Analytics** | Live telemetry & health monitoring | ✅ Live |
 
 </div>
 
-> 💡 **Tip**: The dashboard operates in demo mode on GitHub Pages, generating synthetic abyssal missions with realistic physics. No hardware required.
+> 💡 **Tip**: The production dashboard streams the live fleet via SSE behind
+> Cloudflare Access (single sign-on). The GitHub Pages mirror runs in demo
+> mode with synthetic abyssal missions — no hardware required.
 
 ---
 
@@ -246,6 +252,14 @@ CUSUM anomaly detection grants operators **<90s detection latency** with **ARL�
 
 </div>
 
+> **Empirical validation contract** — every headline number is *measured*, not
+> asserted. RQ2 (partition recovery + coherence) is validated by driving the
+> real federation algorithm over a Markov packet-loss channel with partition +
+> heal (`experiments/rq2_federation/`, deterministic seed 42 — see `results.json`);
+> RQ3's ARL₀ was empirically recalibrated to `h=10.5` via 10K-run Monte Carlo
+> (`scripts/attacks/validate_arl0_montecarlo.py`). No figure in this README is
+> hardcoded without a reproducing experiment.
+
 ---
 
 ## 🔌 API Reference
@@ -253,69 +267,71 @@ CUSUM anomaly detection grants operators **<90s detection latency** with **ARL�
 ### REST Endpoints
 
 ```http
-GET  /                          → Health check
+GET  /api/v1/health              → Service health (public)
+GET  /                          → Mission Control dashboard (static assets)
 GET  /api/v1/simulate           → SSE stream (simulated fleet)
-GET  /api/v1/fleet/stream       → SSE stream (live fleet)
-GET  /ws/live                   → WebSocket (federation)
-GET  /api/v1/fleet/status       → Fleet snapshot
-POST /api/v1/ingest             → Edge batch upload
-GET  /api/v1/anomalies          → Anomaly history
-GET  /api/v1/export/summary     → Research metrics
+GET  /api/v1/fleet/stream       → SSE stream (live fleet, auth)
+GET  /ws/live                   → WebSocket (federation, auth)
+GET  /api/v1/fleet/status       → Fleet snapshot (auth)
+POST /api/v1/ingest             → Edge batch upload (service token)
+GET  /api/v1/anomalies          → Anomaly history (auth)
+GET  /api/v1/export/summary     → Research metrics (auth)
 ```
 
 ### Environment Configuration
 
+The dashboard is served from the SAME origin as the API (worker `[assets]`
+binding), so the defaults are same-origin (relative URLs) — the Cloudflare
+Access cookie flows automatically. Override only when self-hosting elsewhere.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_API_BASE` | `https://api.abyssal-twin.dev` | REST API base |
-| `VITE_WS_URL` | `wss://api.abyssal-twin.dev/ws/live` | WebSocket endpoint |
-| `VITE_SSE_URL` | `https://api.abyssal-twin.dev/api/v1/fleet/stream` | SSE stream |
+| `VITE_API_BASE` | *(empty — same origin)* | REST API base |
+| `VITE_WS_URL` | `/ws/live` | WebSocket endpoint |
+| `VITE_SSE_URL` | `/api/v1/fleet/stream` | SSE stream |
 | `VITE_MAPBOX_TOKEN` | — | Geospatial visualization |
 
 ---
 
 ## 🚀 Deployment
 
-### GitHub Pages (Primary)
+### Production — Cloudflare Worker + Mission Control assets (canonical)
 
-The dashboard auto-deploys to GitHub Pages on every push to `main`:
+The dashboard and API are deployed as a single Cloudflare Worker. The React
+Mission Control build is served by the worker's `[assets]` binding from the
+**same Access-protected origin** as the API — one origin, one cookie, zero CORS.
 
+**Live:**
+- Direct: https://abyssal-twin.swanandtanavade100.workers.dev
+- Access-protected (SSO): https://abyssal-twin.dalecabra.com
+- Health: `GET /api/v1/health`
+
+**Deploy (GitHub Actions → `deploy.yml`):**
 ```bash
-# Required Secret: VITE_MAPBOX_TOKEN
-# Settings → Secrets and variables → Actions → New repository secret
+# Required repo secrets (Settings → Secrets → Actions):
+gh secret set CLOUDFLARE_API_TOKEN   # Cloudflare API token (Edit Cloudflare Workers)
+gh secret set CLOUDFLARE_ACCOUNT_ID  # Cloudflare account ID
+gh secret set VITE_MAPBOX_TOKEN      # Mapbox public token
+# Deploy on push to main (manual approval for production):
+wrangler deploy --env=production
+wrangler d1 migrations apply abyssal-fleet --env=production
 ```
 
-🔗 **https://kakashi3lite.github.io/abyssal-twin/**
+**Resources (verified live):** D1 `abyssal-fleet` (migrations 0001–0003),
+R2 `abyssal-missions`, Durable Object `FederationCoordinator`
+(`new_sqlite_classes`), `INGEST_TOKEN` secret for the edge gateway.
 
-### Cloudflare Pages (Edge CDN)
+### GitHub Pages (research demo)
 
-For global edge deployment with DDoS protection:
+The dashboard auto-builds to GitHub Pages on push to `main` for a hardware-free
+synthetic demo (no backend — runs in simulation mode):
 
-1. **Create Cloudflare Pages project**:
-   - Go to Cloudflare Dashboard → Pages → Create project
-   - Connect GitHub repository
+🔗 https://kakashi3lite.github.io/abyssal-twin/
 
-2. **Configure build settings**:
-   ```
-   Build command: cd mission-control && npm run build
-   Build output: mission-control/dist
-   Root directory: /
-   ```
-
-3. **Add environment variables**:
-   ```
-   VITE_MAPBOX_TOKEN = pk.eyJ... (your Mapbox public token)
-   VITE_API_BASE = https://api.abyssal-twin.dev
-   VITE_WS_URL = wss://api.abyssal-twin.dev/ws/live
-   VITE_SSE_URL = https://api.abyssal-twin.dev/api/v1/fleet/stream
-   ```
-
-4. **Or use GitHub Actions** (requires secrets):
-   - `CLOUDFLARE_API_TOKEN` — from Cloudflare API Tokens
-   - `CLOUDFLARE_ACCOUNT_ID` — from Cloudflare dashboard sidebar
-   - `VITE_MAPBOX_TOKEN` — your Mapbox public token
-
-🔗 **https://abyssal-twin.pages.dev** (example)
+> ⚠️ The standalone Cloudflare **Pages** deployment is deprecated: a Pages
+> bundle cannot reach the API (CORS is locked to the Access origin) and the
+> old baked base (`api.abyssal-twin.dev`) is NXDOMAIN. The worker-assets
+> deployment above is the single canonical path.
 
 ---
 
