@@ -13,7 +13,7 @@ type Tab = "dashboard" | "anomalies" | "analytics";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
-  const { fleetState, connected, error } = useFleetSSE();
+  const { fleetState, connected, simulationMode, error } = useFleetSSE();
 
   const vehicles = fleetState?.vehicles ?? [];
   const onlineCount = vehicles.filter((v) => v.status === "online").length;
@@ -36,6 +36,11 @@ export default function App() {
 
           {/* Connection status indicator */}
           <div className="flex items-center gap-4">
+            {simulationMode && (
+              <span className="rounded bg-abyss-600/50 px-2 py-0.5 text-xs font-medium text-abyss-200 tracking-wide">
+                SIMULATION
+              </span>
+            )}
             <div className="flex items-center gap-2 text-sm">
               <div
                 className={`h-2 w-2 rounded-full ${

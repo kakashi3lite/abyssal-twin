@@ -93,8 +93,14 @@ class CUSUMConfig:
     """
 
     # Threshold h: controls ARL₀
-    # Default: h=10 → ARL₀ ≈ 22,026 under H₀ (Siegmund approximation)
-    threshold_h: float = 10.0
+    # Default: h=10.5 → per-dim theoretical ARL₀ ≈ 36,316 (Siegmund);
+    # empirical (10,000-run Monte Carlo, seed 42): per-dim ≈ 96,103,
+    # 7-dim any-alarm ≈ 16,566 (CI₉₅ low 16,244) — Phase 5 validated, see
+    # tests/property/test_rq5_empirical_arl0.py + scripts/attacks/validate_arl0_montecarlo.py.
+    # NOTE: h=10.0 was the old default; empirical 7-dim CI₉₅ low (≈9.7k) FAILED
+    # the >10,000 guarantee (Siegmund divergence under multi-dim compounding).
+    # Recalibrated to 10.5 so the DEPLOYED fleet detector clears the target.
+    threshold_h: float = 10.5
 
     # Reference value k: half the expected shift magnitude (in sigma units)
     # k = 0.5 × δ where δ is the detectable shift size
@@ -445,6 +451,131 @@ class ARLBounds:
             "detection_delay_s_at_05hz": delay_s_at_05hz,
             "detection_delay_target_met": bool(delay_s_at_05hz < 120.0),
         }
+
+    # ── Empirical Monte Carlo validation (Phase 5) ──────────────────────────
+    # The Siegmund approximation is known to deviate 20-40% from the true ARL₀
+    # (Basseville & Nikiforov, 1993) — the RQ3/RQ5 contract REQUIRES publishing
+    # BOTH the theoretical and the empirically-estimated ARL₀. The guarantee
+    # ("ARL₀ > 10,000") must be validated by Monte Carlo, not assumed.
+
+    @staticmethod
+    def empirical_arl0(
+        config: CUSUMConfig,
+        n_runs: int = 1000,
+        n_dims: int = 1,
+        p_loss: float = 0.0,
+        max_steps: int = 200_000,
+        seed: int = 42,
+    ) -> dict[str, float | int]:
+        """
+        Monte Carlo estimate of ARL₀ under H₀ (standard-normal residuals).
+
+        Runs `n_runs` independent fresh-detector simulations; each run records
+        the number of observations until the FIRST CUSUM false alarm (or
+        `max_steps` if none — censored). Returns mean/median/std + 95% CI.
+
+        Parameters:
+          n_dims: number of monitored residual dimensions. The Siegmund bound
+                  is per-dimension; with >1 dimension the "any-dimension"
+                  ARL₀ compounds (fewer steps until some dimension alarms).
+          p_loss: per-observation acoustic packet-loss probability. Lost
+                  packets skip the CUSUM update (extends ARL₀).
+          max_steps: simulation horizon; runs exceeding it are censored.
+        """
+        rng = np.random.default_rng(seed)
+        run_lengths = np.empty(n_runs, dtype=np.int64)
+        for i in range(n_runs):
+            run_lengths[i] = _cusum_false_alarm_time(
+                threshold_h=config.threshold_h,
+                reference_k=config.reference_k,
+                n_dims=n_dims,
+                max_steps=max_steps,
+                p_loss=p_loss,
+                rng_state=rng.integers(0, 2**31 - 1),
+            )
+
+        mean = float(np.mean(run_lengths))
+        std = float(np.std(run_lengths, ddof=1))
+        se = std / np.sqrt(n_runs)
+        censored = int(np.sum(run_lengths >= max_steps))
+        return {
+            "n_runs": n_runs,
+            "n_dims": n_dims,
+            "p_loss": p_loss,
+            "mean": mean,
+            "median": float(np.median(run_lengths)),
+            "std": std,
+            "ci95_low": mean - 1.96 * se,
+            "ci95_high": mean + 1.96 * se,
+            "censored_runs": censored,
+        }
+
+    @staticmethod
+    def validate_empirically(
+        config: CUSUMConfig,
+        n_runs: int = 1000,
+        n_dims: int = 1,
+        p_loss: float = 0.0,
+        target_arl0: float = 10_000.0,
+        seed: int = 42,
+    ) -> dict[str, float | int | bool]:
+        """
+        RQ5 contract: validate a config's ARL₀ guarantee empirically AND
+        publish both the theoretical (Siegmund) and empirical values.
+
+        Returns theoretical_arl0, empirical_arl0 (mean + 95% CI), the ratio,
+        and whether the empirical 95% CI lower bound clears the target.
+        """
+        theoretical = config.theoretical_arl0()
+        emp = ARLBounds.empirical_arl0(
+            config, n_runs=n_runs, n_dims=n_dims, p_loss=p_loss, seed=seed
+        )
+        mean = float(emp["mean"])
+        return {
+            "theoretical_arl0": theoretical,
+            "empirical_arl0_mean": mean,
+            "empirical_ci95_low": float(emp["ci95_low"]),
+            "empirical_ci95_high": float(emp["ci95_high"]),
+            "empirical_over_theoretical": mean / theoretical,
+            "target_arl0": target_arl0,
+            "empirical_target_met": bool(float(emp["ci95_low"]) > target_arl0),
+            **emp,
+        }
+
+
+@jit(nopython=True)
+def _cusum_false_alarm_time(
+    threshold_h: float,
+    reference_k: float,
+    n_dims: int,
+    max_steps: int,
+    p_loss: float,
+    rng_state: int,
+) -> int:
+    """
+    One Monte Carlo run: feed standard-normal residuals to a fresh CUSUM under
+    H₀ and return the observation index of the first false alarm.
+
+    Mirrors CUSUMDetector.update exactly (S⁺/S⁻ recursion, reset on alarm).
+    Seeded via the legacy np.random global (numba-compatible); each run gets a
+    distinct seed from a default_rng upstream so runs are independent.
+    """
+    np.random.seed(rng_state)
+    s_plus = np.zeros(n_dims)
+    s_minus = np.zeros(n_dims)
+    for t in range(1, max_steps + 1):
+        # Markovian packet loss: skip the update with probability p_loss
+        if p_loss > 0.0 and np.random.random() < p_loss:
+            continue
+
+        z = np.random.normal(0.0, 1.0, n_dims)
+        s_plus = np.maximum(0.0, s_plus + z - reference_k)
+        s_minus = np.maximum(0.0, s_minus - z - reference_k)
+
+        if np.any(s_plus > threshold_h) or np.any(s_minus > threshold_h):
+            return t
+
+    return max_steps  # censored (no false alarm within horizon)
 
 
 # ─── Calibration ─────────────────────────────────────────────────────────────

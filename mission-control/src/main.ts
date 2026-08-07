@@ -14,11 +14,12 @@ import 'chartjs-adapter-date-fns';
 import type { FleetStatus, Vehicle, StateVector, ResearchMetrics, SystemEvent, DashboardState } from './types';
 import { DemoDataEngine, DemoWebSocket, shouldUseDemoMode } from './demo-data';
 
-// Configuration - uses environment variables for deployment flexibility
+// Legacy (unbundled) demo entry — the live dashboard is React via main.tsx.
+// Kept same-origin defaults so this file can never point at a dead host.
 const CONFIG = {
-  API_BASE: import.meta.env.VITE_API_BASE || 'https://staging.abyssal-twin.dev',
-  WS_URL: import.meta.env.VITE_WS_URL || 'wss://staging.abyssal-twin.dev/ws/live',
-  SSE_URL: import.meta.env.VITE_SSE_URL || 'https://staging.abyssal-twin.dev/api/v1/fleet/stream',
+  API_BASE: import.meta.env.VITE_API_BASE || '',
+  WS_URL: import.meta.env.VITE_WS_URL || '/ws/live',
+  SSE_URL: import.meta.env.VITE_SSE_URL || '/api/v1/fleet/stream',
   REFRESH_INTERVAL: 5000,
   MAX_EVENTS: 50,
 };

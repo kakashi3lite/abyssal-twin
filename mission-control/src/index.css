@@ -2,35 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar */
+/* ─── Abyssal Dark Mode tokens ────────────────────────────────────────────
+   Bioluminescent HUD aesthetic: near-black void, cyan/sonar-green accents,
+   glass surfaces, tactical brackets. Low-light compatible (naval night ops). */
+:root {
+  --abyss-void: #04060f;
+  --bio-cyan: #00e5ff;
+  --bio-teal: #00b4d8;
+  --bio-green: #00ff88;
+  --bio-amber: #ffbb00;
+  --bio-red: #ff3366;
+  --glass-surface: rgba(20, 27, 45, 0.72);
+  --glass-border: rgba(100, 210, 255, 0.18);
+}
+
+html {
+  background: var(--abyss-void);
+}
+
+/* Glassmorphism card (HUD panel) */
+.glass-card {
+  background: var(--glass-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Tactical corner brackets */
+.hud-bracket {
+  position: relative;
+}
+.hud-bracket::before,
+.hud-bracket::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(0, 229, 255, 0.45);
+  pointer-events: none;
+}
+.hud-bracket::before {
+  top: 6px;
+  left: 6px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.hud-bracket::after {
+  bottom: 6px;
+  right: 6px;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* Scan-line sweep overlay for critical panels */
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 229, 255, 0.03) 0px,
+    rgba(0, 229, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Numeric readouts: tabular so digits don't jitter (operator trust) */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Custom scrollbar (abyssal) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #04060f;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #0e3a4a;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #14607a;
 }
 
 /* Mapbox popup customization */
 .mapboxgl-popup-content {
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background: #0a101f;
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   color: #e2e8f0;
 }
 
 .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
-  border-top-color: #0f172a;
+  border-top-color: #0a101f;
 }
 
 /* Selection disable for map interactions */
@@ -52,5 +130,16 @@
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+/* Respect reduced motion (operator ergonomics) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

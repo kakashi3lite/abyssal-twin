@@ -94,8 +94,9 @@ jobs:
       - name: Smoke tests
         run: |
           echo "Running smoke tests against staging..."
-          # Allow failures during initial setup
-          curl -sf https://staging.abyssal-twin.dev/health 2>/dev/null && echo "✅ Health check passed" || echo "⚠️  Health check not available (expected during initial setup)"
+          # staging.abyssal-twin.dev is NXDOMAIN (staging env not provisioned);
+          # fall back to the live production worker as the canary.
+          curl -sf https://abyssal-twin.swanandtanavade100.workers.dev/api/v1/health 2>/dev/null && echo "✅ Health check passed (production canary)" || echo "⚠️  Health check not available"
 
   # ============================================================================
   # E2E Testing
@@ -110,15 +111,24 @@ jobs:
       
       - name: E2E API Tests
         run: |
-          echo "Running E2E tests..."
-          # Test federation endpoints
-          curl -sf https://staging.abyssal-twin.dev/api/v1/fleet/status 2>/dev/null && echo "✅ Fleet status endpoint" || echo "⚠️  Endpoint not available"
-      
-      - name: RQ2 Validation (Partition Recovery)
+          echo "Running E2E tests against the live worker..."
+          W=https://abyssal-twin.swanandtanavade100.workers.dev
+          # Public health endpoint must be 200.
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$W/api/v1/health")
+          test "$code" = "200" && echo "✅ Health endpoint HTTP $code" || { echo "❌ Health endpoint HTTP $code"; exit 1; }
+          # Protected fleet endpoints must reject unauthenticated callers (401).
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$W/api/v1/fleet/status")
+          test "$code" = "401" && echo "✅ fleet/status auth gate HTTP $code" || { echo "❌ fleet/status expected 401 got $code"; exit 1; }
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$W/api/v1/fleet/stream")
+          test "$code" = "401" && echo "✅ fleet/stream auth gate HTTP $code" || { echo "❌ fleet/stream expected 401 got $code"; exit 1; }
+
+      - name: RQ2 Validation (Fleet Resilience — measured)
         run: |
-          echo "RQ2 validation: Verify convergence <60s"
-          # This would be implemented with actual metrics collection
-          echo "Partition recovery validation: SKIPPED (metrics not yet configured)"
+          echo "RQ2 validation: partition recovery <45s, RMS <2m, coherence >95% at realistic loss"
+          # Phase 8: runs the REAL FederationManager over Markov loss + partition
+          # + heal and asserts the measured targets (deterministic seed 42).
+          cargo test --manifest-path src/iort_dt_federation/Cargo.toml --test fleet_resilience
+          echo "✅ RQ2 fleet-resilience validation passed (see experiments/rq2_federation/results.json)"
 
   # ============================================================================
   # Production Deployment (Manual Approval Required)
@@ -129,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://abyssal-twin.dev
+      url: https://abyssal-twin.swanandtanavade100.workers.dev
     steps:
       - uses: actions/checkout@v4.1.1
       
@@ -163,7 +173,8 @@ jobs:
       - name: Verify Deployment
         run: |
           echo "Verifying production deployment..."
-          curl -sf https://abyssal-twin.dev/health 2>/dev/null && echo "✅ Production health check passed" || echo "⚠️  Production not yet accessible"
+          # Health moved to /api/v1/health (Phase 6.5); *.abyssal-twin.dev is NXDOMAIN.
+          curl -sf https://abyssal-twin.swanandtanavade100.workers.dev/api/v1/health 2>/dev/null && echo "✅ Production health check passed" || echo "⚠️  Production not yet accessible"
 
   # ============================================================================
   # Deployment Summary

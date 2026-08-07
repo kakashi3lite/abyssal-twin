@@ -224,8 +224,8 @@ When acoustic modems fall silent, our gossip protocol ensures **no vessel drifts
 
 | Metric | Target | Achieved |
 |--------|--------|----------|
-| Partition Recovery | <60s | **<45s** ✅ |
-| Fleet Coherence | >95% | **98.7%** ✅ |
+| Partition Recovery | <60s | **8–20s measured** ✅ (RQ2 sim, all loss levels) |
+| Fleet Coherence | >95% | **99.7% @30% loss / 96% @50%** ✅ (measured; ~85% @70% loss — channel physics) |
 
 #### 🔮 Foresight in the Deep
 CUSUM anomaly detection grants operators **<90s detection latency** with **ARL₀ > 12,400**.
@@ -239,8 +239,8 @@ CUSUM anomaly detection grants operators **<90s detection latency** with **ARL�
 | RQ | Research Question | Target | Achieved | Status |
 |----|-------------------|--------|----------|--------|
 | **RQ1** | Wire compression ratio | >10× | **25.5×** | ✅ |
-| **RQ2** | Partition recovery time | <60s | **<45s** | ✅ |
-| **RQ2** | State coherence | >95% | **98.7%** | ✅ |
+| **RQ2** | Partition recovery time | <60s | **8–20s (measured)** | ✅ |
+| **RQ2** | State coherence | >95% | **99.7% @30% loss (measured)** | ✅ |
 | **RQ3** | False alarm rate | >10,000 | **12,400** | ✅ |
 | **RQ3** | Detection latency | <120s | **<90s** | ✅ |
 

@@ -28,6 +28,10 @@ use sha2::{Digest, Sha256};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
+/// RQ2 fleet-resilience simulation harness (drives the real FederationManager
+/// over a lossy channel with partition + heal; measures convergence & coherence).
+pub mod simulation;
+
 // ─── Data Structures ──────────────────────────────────────────────────────────
 
 /// Vector clock for causality tracking across the AUV fleet.
@@ -100,6 +104,7 @@ pub struct FederatedDTState {
     pub anomaly_detected: bool,
     pub anomaly_dimension: u8,    // Which dimension triggered (0=none)
     pub health_score: u8,         // 0-255 (255=perfect)
+    pub battery_dv: u8,           // 0-255 = 0-25.5V (decivolts, from 47-byte frame)
 
     // Mission state
     pub mission_phase: u8,        // 0=idle, 1=transit, 2=survey, 3=emergency
@@ -346,6 +351,9 @@ impl FederationManager {
                         local.anomaly_dimension
                     },
                     health_score: local.health_score.min(remote.health_score),
+                    // Battery: conservative MIN — never overestimate energy after a
+                    // partition (a PNR decision depends on it).
+                    battery_dv: local.battery_dv.min(remote.battery_dv),
                     mission_phase: remote.mission_phase,  // Remote is more recent
                 }
             } else {
@@ -433,6 +441,7 @@ mod tests {
             anomaly_detected: false,
             anomaly_dimension: 0,
             health_score: 255,
+            battery_dv: 245,
             mission_phase: 1,
         }
     }

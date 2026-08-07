@@ -4,6 +4,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::env;
+use std::io;
 use tokio::time::{sleep, Duration};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
@@ -12,9 +13,12 @@ use iort_dt_federation::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
+    // Initialize logging — write to stderr (unbuffered) so logs are visible
+    // immediately in container log capture. Rust's stdout is block-buffered
+    // when piped to Docker, which previously hid all logs indefinitely.
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive("iort_dt_federation=info".parse()?))
+        .with_writer(io::stderr)
         .init();
 
     // Configuration from environment

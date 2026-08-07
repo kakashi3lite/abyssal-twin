@@ -8,8 +8,8 @@
 
 [![Enterprise](https://img.shields.io/badge/Enterprise-Ready-success)](https://)
 [![SOC2](https://img.shields.io/badge/Compliance-SOC%202%20Type%20II-blue)](https://)
-[![Defense](https://img.shields.io/badge/ITAR-Compliant-orange)](https://)
-[![Uptime](https://img.shields.io/badge/Uptime-99.99%25-success)](https://)
+[![Defense](https://img.shields.io/badge/ITAR-Roadmap-yellow)](https://)
+[![Uptime](https://img.shields.io/badge/SLA-Target%2099.9%25-yellow)](https://)
 
 > **Mission**: Prevent $1M+ asset losses while maximizing subsea operational efficiency through predictive intelligence and real-time fleet orchestration.
 
@@ -32,8 +32,8 @@ Abyssal Twin transforms how organizations deploy, monitor, and protect autonomou
 |------------|-------|
 | **Predictive PNR Engine** | Prevents 94% of battery-related losses |
 | **Global Fleet Command** | Single-pane orchestration for 100+ assets |
-| **Black Box Replay** | Insurance-compliant mission forensics |
-| **Defense-Grade Security** | FIPS 140-2, zero-trust architecture |
+| **Black Box Replay** | Mission forensics for incident investigation |
+| **Defense-Grade Security** | Zero-trust architecture (FIPS on roadmap) |
 
 ---
 
@@ -61,17 +61,16 @@ Single-pane geospatial command center with:
 - **Real-time position tracking** across ocean basins
 - **Intelligent clustering** for 100+ asset visibility
 - **Multi-asset synchronized missions**
-- **Automated conflict resolution**
 
 ### 3. Bank-Grade Security & Compliance
 
-| Standard | Status | Certification |
-|----------|--------|---------------|
-| SOC 2 Type II | ✅ Certified | Q1 2026 |
-| ISO 27001 | ✅ Certified | Q1 2026 |
-| ITAR | 🔄 In Progress | Q2 2026 |
-| FIPS 140-2 | ✅ Level 2 | Compliant |
-| CMMC 2.0 | 🔄 In Progress | Q3 2026 |
+| Standard | Status | Notes |
+|----------|--------|-------|
+| SOC 2 Type II | 🗺️ Roadmap | audit-ready controls designed in; certification scheduled after first deployments |
+| ISO 27001 | 🗺️ Roadmap | aligned with SOC 2 program |
+| ITAR | 🗺️ In Progress | data-residency enforcement (CF-IPCountry + immutable R2 audit) implemented; formal registration in progress |
+| FIPS 140-2 | 🗺️ Roadmap | cryptographic posture (Zenoh TLS/HMAC) documented; validation requires third-party lab |
+| CMMC 2.0 | 🗺️ Roadmap | depends on DoD program engagement |
 
 **Security Features**:
 - End-to-end encryption (AES-256-GCM)
@@ -189,7 +188,7 @@ Single-pane geospatial command center with:
 
 - **Multi-tenant isolation** per customer
 - **Auto-scaling** for fleet growth
-- **99.99% SLA** with 24/7 support
+- **SLA target 99.9%** with 24/7 support (formal SLA offered after SOC 2)
 - **Monthly billing** based on active assets
 
 ### Dedicated Cloud
@@ -216,48 +215,51 @@ Single-pane geospatial command center with:
 
 ### Fleet Scale Testing
 
+> ⚠️ Targets below are **design targets**, not yet measured at fleet scale —
+> fleet-scale load testing is an open roadmap item. The 4-AUV simulation and
+> live single-fleet demo are the current validation envelope.
+
 | Fleet Size | Update Latency | Memory Usage | CPU Load |
 |------------|---------------|--------------|----------|
-| 10 assets  | < 100ms       | 256 MB       | 5%       |
-| 50 assets  | < 250ms       | 512 MB       | 12%      |
-| 100 assets | < 500ms       | 1 GB         | 25%      |
-| 250 assets | < 1s          | 2 GB         | 45%      |
+| 10 assets  | < 100ms (target) | 256 MB (target) | 5% (target) |
+| 50 assets  | < 250ms (target) | 512 MB (target) | 12% (target) |
+| 100 assets | < 500ms (target) | 1 GB (target) | 25% (target) |
+| 250 assets | < 1s (target) | 2 GB (target) | 45% (target) |
 
 ### Network Efficiency
 
-| Scenario | Bandwidth | Compression |
-|----------|-----------|-------------|
-| Full telemetry (1 Hz) | 47 bytes/state | 25.5× vs ROS2 |
-| Delta updates | 12 bytes/state | 100× vs baseline |
-| Emergency burst | 256 bytes | 5× vs baseline |
+| Scenario | Bandwidth | Compression | Status |
+|----------|-----------|-------------|--------|
+| Full telemetry (0.5 Hz) | 47 bytes/state | 25.5× vs ROS2 | ✅ measured (RQ1) |
+| Delta updates | 12 bytes/state | 100× vs baseline | 🗺️ design target (computeDelta implemented) |
+| Emergency burst | 256 bytes | 5× vs baseline | 🗺️ design target |
 
 ---
 
 ## 🔐 Security Features
 
-### Data Protection
+### Data Protection (implemented posture)
 
-| Layer | Mechanism | Standard |
-|-------|-----------|----------|
-| Transport | TLS 1.3 + Certificate Pinning | RFC 8446 |
-| At Rest | AES-256-GCM | NIST FIPS 197 |
-| Key Management | HSM-backed PKI | FIPS 140-2 L2 |
-| Backup | Encrypted with customer-managed keys | - |
+| Layer | Mechanism | Status |
+|-------|-----------|--------|
+| Transport (acoustic/edge) | Zenoh TLS (rustls, RFC 8446) — zero per-message overhead | ✅ implemented, live E2E verified |
+| Per-message auth (optional) | HMAC-SHA256 truncated to 8 B + 2 B sequence (10 B auth header) | ✅ implemented, cross-tier tested |
+| Cloud dashboard auth | Cloudflare Access JWT (RS256) with pinned issuer; bearer service tokens (timing-safe) | ✅ implemented, live 401 on forged JWTs |
+| At-rest fleet state | D1 + R2 with immutable audit trail | ✅ implemented |
+| Data residency | ITAR enforcement via `CF-IPCountry` + immutable R2 audit trail | ✅ implemented |
 
-### Access Control
+### Access Control (implemented)
 
-- **Multi-factor authentication** (MFA) required
-- **Role-based access control** (RBAC) with 50+ permissions
-- **Just-in-time access** for privileged operations
-- **Audit logging** of all administrative actions
+- **Cloudflare Access** (MFA via Access policies) for the dashboard
+- **Role-based access**: `researcher` / `operator` roles enforced on API routes
+- **Service tokens**: bearer tokens with timing-safe comparison for gateway ingest
+- **Audit logging** of administrative actions
 
 ### Compliance
 
-- **SOC 2 Type II** certified (annual audits)
-- **ISO 27001** certified (information security)
-- **GDPR** compliant (data protection)
-- **CCPA** compliant (California privacy)
-- **ITAR** registration in progress
+- **SOC 2 Type II / ISO 27001**: roadmap — audit-ready design, certification scheduled
+- **GDPR / CCPA**: design goals (data-residency controls align)
+- **ITAR**: registration in progress; residency enforcement implemented
 
 ---
 
@@ -293,17 +295,24 @@ Single-pane geospatial command center with:
 
 ## 🏢 Customers
 
-> *"Abyssal Twin prevented the loss of a $2.4M AUV during a critical pipeline survey. The PNR alert gave us exactly the warning we needed to abort and recover."*
->
-> **— Chief Technology Officer**, Global Offshore Survey Contractor
+> ⚠️ **Honest status**: this platform is in **pre-commercial validation** — a
+> live demonstration deployment and a university research pilot (University of
+> Nebraska at Omaha). No named production customers or fleet deployments exist
+> yet, so we do not publish testimonials. Named customer references will be
+> added when the first production pilots are signed.
 
-> *"The federated architecture is a game-changer for our defense operations. We can maintain situational awareness even with intermittent satellite connectivity."*
->
-> **— Program Director**, Naval Research Organization
+**Current validation evidence (reproducible):**
 
-> *"We evaluated six different platforms. Abyssal Twin was the only one that could handle our 100-vehicle fleet with the reliability we need."*
->
-> **— VP of Operations**, Autonomous Shipping Company
+- **Live system**: deployed behind Cloudflare Access
+  (`abyssal-twin.dalecabra.com`), streaming real-time fleet SSE, dashboard +
+  Rust-WASM engine (Phase 7)
+- **RQ1**: 25.5× wire compression measured (47-byte state, property-tested)
+- **RQ2**: fleet partition recovery + coherence **measured** via the federation
+  simulation (see `experiments/rq2_federation/`)
+- **RQ3/RQ5**: CUSUM ARL₀ > 10,000 **validated empirically** (10K Monte Carlo,
+  recalibrated h=10.5)
+- **RQ4**: per-message HMAC-8 auth cross-tier tested (Python ↔ Rust)
+- **Security**: Access JWT issuer-pinning verified live (forged JWT → 401)
 
 ---
 

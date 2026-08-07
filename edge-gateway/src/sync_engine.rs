@@ -40,10 +40,20 @@ pub async fn run(
             Ok(anomalies) if !anomalies.is_empty() => {
                 let ids: Vec<i64> = anomalies.iter().map(|(id, _)| *id).collect();
                 let jsons: Vec<String> = anomalies.into_iter().map(|(_, j)| j).collect();
-                let payload = format!("[{}]", jsons.join(","));
+                // Ingest contract is {states, anomalies} — wrap so the Worker
+                // can parse this as an IngestBatch (bare arrays were rejected).
+                let payload = format!(r#"{{"states":[],"anomalies":[{}]}}"#, jsons.join(","));
 
+                // Report transfer to the bandwidth monitor. P0 is the ONLY
+                // upload path that runs in Emergency, so without this the EMA
+                // would never receive a new sample once the tier drops — a
+                // gateway could never recover from Emergency even if the link
+                // improves (stuck-in-Emergency trap).
+                let start = Instant::now();
                 match client.upload_json("/api/v1/ingest", &payload).await {
                     Ok(()) => {
+                        let duration_ms = start.elapsed().as_millis() as u64;
+                        bw_monitor.report_transfer(payload.len() as u64, duration_ms);
                         info!(count = ids.len(), "Anomaly alerts synced");
                         let _ = cache.mark_sent("anomalies", &ids);
                         retry_backoff = Duration::from_secs(1);

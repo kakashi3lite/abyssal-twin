@@ -6,22 +6,81 @@
 
 import { Hono } from "hono";
 import type { Env, FederatedDTState, AnomalyEvent, IngestBatch } from "../types";
+import { decompress as zstdDecompress } from "fzstd";
+import { dataResidency } from "../middleware/data-residency";
 
 export const ingestRoutes = new Hono<{ Bindings: Env }>();
 
-/** POST / — Accept batch from vessel sync engine. */
+// ITAR data residency + immutable R2 audit trail for every ingest write.
+// (Moved here from the top-level mount so the bare /api/v1/ingest path is
+// always covered — a "/api/v1/ingest/*" mount can miss the slash-less path.)
+ingestRoutes.use("*", dataResidency());
+
+/** Timing-safe constant-time comparison (avoids length-early-exit leaks). */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Simple per-IP token-bucket rate limit for the ingest endpoint.
+ * In-memory per isolate — a deterrent, not a global quota (Free plan).
+ * The gateway uploads small batches; 120/min is generous for satellite.
+ */
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX = 120;
+const ingestHits = new Map<string, { count: number; windowStart: number }>();
+
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  const hit = ingestHits.get(ip);
+  if (!hit || now - hit.windowStart >= RATE_WINDOW_MS) {
+    ingestHits.set(ip, { count: 1, windowStart: now });
+    return false;
+  }
+  hit.count += 1;
+  return hit.count > RATE_MAX;
+}
+
+/** POST / — Accept batch from vessel sync engine (authenticated). */
 ingestRoutes.post("/", async (c) => {
+  // ── AUTH (Phase 4): reject unless the vessel presents the shared secret. ──
+  // Fail closed: an unconfigured INGEST_TOKEN rejects every batch.
+  const expected = c.env.INGEST_TOKEN;
+  const authHeader = c.req.header("Authorization") ?? "";
+  const presented = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : "";
+  if (!expected || !timingSafeEqual(presented, expected)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  // ── RATE LIMIT ──
+  const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+  if (rateLimited(ip)) {
+    return c.json({ error: "Rate limit exceeded" }, 429);
+  }
+
   const contentEncoding = c.req.header("Content-Encoding");
   const contentType = c.req.header("Content-Type");
 
   let payload: IngestBatch;
 
-  if (contentEncoding === "zstd" || contentType === "application/octet-stream") {
-    // Compressed payload: Workers runtime handles zstd decompression
-    // via DecompressionStream (available in Workers)
-    const raw = await c.req.arrayBuffer();
+  // NOTE: we decide by PAYLOAD (zstd magic sniff), not by header. Cloudflare's
+  // edge intercepts Content-Encoding request headers (observed: sending
+  // `Content-Encoding: zstd` breaks the body before it reaches the Worker,
+  // while the identical body without the header decodes fine). The zstd magic
+  // 28 B5 2F FD is present in every standard zstd frame (what the Rust
+  // `zstd` crate emits), so sniffing is unambiguous.
+  const raw = new Uint8Array(await c.req.arrayBuffer());
+
+  if (contentEncoding === "zstd" || contentType === "application/octet-stream" || looksLikeZstd(raw)) {
     try {
-      const decompressed = await decompressZstd(new Uint8Array(raw));
+      const decompressed = await decompressZstd(raw);
       payload = JSON.parse(new TextDecoder().decode(decompressed));
     } catch {
       // Fall back to treating as uncompressed JSON
@@ -32,7 +91,7 @@ ingestRoutes.post("/", async (c) => {
       }
     }
   } else {
-    payload = await c.req.json<IngestBatch>();
+    payload = JSON.parse(new TextDecoder().decode(raw)) as IngestBatch;
   }
 
   const states = payload.states ?? [];
@@ -53,17 +112,20 @@ ingestRoutes.post("/", async (c) => {
       batch.push(
         db.prepare(`
           INSERT INTO state_vectors
-          (vehicle_id, pose_x, pose_y, pose_z, yaw,
-           position_variance, health_score, mission_phase, anomaly_detected)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+          (vehicle_id, timestamp, pose_x, pose_y, pose_z, yaw,
+           position_variance, health_score, battery_pct, mission_phase, anomaly_detected)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
         `).bind(
           state.auvId,
+          // ISO-8601 UTC so /fleet/history BETWEEN filters sort correctly.
+          new Date(state.timestamp * 1000).toISOString(),
           state.x,
           state.y,
           state.z,
           state.yaw,
           state.positionVariance,
           state.healthScore,
+          state.batteryPct ?? null,
           state.missionPhase,
           state.anomalyDetected ? 1 : 0
         )
@@ -138,38 +200,36 @@ ingestRoutes.post("/", async (c) => {
 });
 
 /**
- * Attempt zstd decompression using DecompressionStream.
- * Falls back to returning raw bytes if decompression is unavailable.
+ * True when the buffer starts with the standard zstd frame magic (28 B5 2F FD).
+ * Every frame produced by the Rust `zstd` crate carries this magic, so this is
+ * an unambiguous payload-level signal — immune to edge header manipulation.
+ */
+function looksLikeZstd(data: Uint8Array): boolean {
+  return (
+    data.length >= 4 &&
+    data[0] === 0x28 &&
+    data[1] === 0xb5 &&
+    data[2] === 0x2f &&
+    data[3] === 0xfd
+  );
+}
+
+/**
+ * zstd decompression for satellite ingest batches.
+ *
+ * The edge-gateway compresses P1 state batches with Rust `zstd::encode_all`,
+ * producing standard zstd frames. Workers' `DecompressionStream` only supports
+ * gzip/deflate/deflate-raw (no zstd), so we use fzstd — a pure-JS zstd frame
+ * decoder with no WASM or native dependencies.
+ *
+ * On failure we return the raw bytes so the caller can fall back to treating
+ * the body as uncompressed JSON.
  */
 async function decompressZstd(data: Uint8Array): Promise<Uint8Array> {
-  // Workers runtime supports DecompressionStream for some formats.
-  // For zstd, we may need to handle this differently or use a WASM decoder.
-  // For now, try the native path and fall back.
   try {
-    const ds = new DecompressionStream("deflate");
-    const writer = ds.writable.getWriter();
-    const reader = ds.readable.getReader();
-
-    writer.write(data);
-    writer.close();
-
-    const chunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-
-    const total = chunks.reduce((sum, c) => sum + c.length, 0);
-    const result = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return result;
+    return zstdDecompress(data);
   } catch {
-    // Decompression not available; return raw data
+    // Not a valid zstd frame — hand back raw data for the JSON fallback path.
     return data;
   }
 }

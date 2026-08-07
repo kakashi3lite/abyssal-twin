@@ -91,3 +91,9 @@ docs/archive/*.md
 # Local environment overrides
 .env.local
 .env.development
+
+# Local tooling / generated files (never committed)
+.claude/
+.wrangler/
+cloudflare/.wrangler/
+cloudflare/worker-configuration.d.ts

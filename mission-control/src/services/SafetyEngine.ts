@@ -270,8 +270,27 @@ export class SafetyEngine {
     if (!state) {
       return this.createErrorPnr(vehicle.id, 'No state data available');
     }
-    
-    const batteryPct = state.batteryPct ?? (state.healthScore / 255 * 100);
+
+    // HONESTY: batteryPct is the ONLY legitimate input for a PNR decision.
+    // Never substitute healthScore for battery — that would fabricate a
+    // $1M+ safety number. If the wire hasn't delivered battery, PNR is unknown.
+    if (state.batteryPct === undefined || state.batteryPct === null) {
+      return {
+        vehicleId: vehicle.id,
+        canSafelyReturn: null,
+        minutesToPnr: null,
+        estimatedReturnTimeMinutes: null,
+        requiredBatteryPct: null,
+        currentBatteryPct: null,
+        safetyMargin: null,
+        recommendedAction: 'UNAVAILABLE',
+        assessment: 'PNR unavailable — battery telemetry not present',
+        calculatedAt: new Date().toISOString(),
+        confidence: 0,
+      } as unknown as PointOfNoReturn;
+    }
+
+    const batteryPct = state.batteryPct;
     const now = new Date();
     
     // Calculate distance to home

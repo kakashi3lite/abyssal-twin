@@ -8,8 +8,12 @@
 
 import { Hono } from "hono";
 import type { Env } from "../types";
+import { requireAuth } from "../middleware/auth";
 
 export const metricsExportRoutes = new Hono<{ Bindings: Env }>();
+
+// Protect all export routes: researcher+ can access (dissertation data).
+metricsExportRoutes.use("*", requireAuth("researcher"));
 
 /**
  * GET /state-vectors — Export state vectors as CSV.

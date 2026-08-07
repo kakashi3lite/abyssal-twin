@@ -10,11 +10,28 @@ export interface Env {
   FLEET_DB: D1Database;
   MISSION_STORE: R2Bucket;
   FEDERATION_COORDINATOR: DurableObjectNamespace;
+  /** Static-asset binding serving the Mission Control dashboard (same origin). */
+  ASSETS: Fetcher;
   ENVIRONMENT: string;
   SATELLITE_BANDWIDTH_LIMIT_KBPS: string;
   BATCH_INTERVAL_SECONDS: string;
   /** Allowed CORS origin for the Mission Control frontend. Use "*" only in dev. */
   ALLOWED_ORIGIN: string;
+  /** Cloudflare Access application AUD tag. Empty disables the audience check (dev only). */
+  ACCESS_AUD: string;
+  /**
+   * Pinned Cloudflare Access JWT issuer (e.g. https://<team>.cloudflareaccess.com
+   * or the Access-protected custom domain). The JWKS is fetched ONLY from this
+   * issuer — never from a token's `iss` claim (key-confusion defense).
+   */
+  ACCESS_ISSUER: string;
+  /**
+   * Shared secret for the vessel sync engine (edge-gateway). The gateway
+   * sends `Authorization: Bearer {CF_API_TOKEN}`; the Worker must hold the
+   * SAME value here or it rejects the batch (401). Set via `wrangler secret
+   * put INGEST_TOKEN` in production.
+   */
+  INGEST_TOKEN: string;
 }
 
 // ─── Federation State (mirrors Rust FederatedDTState) ───────────────────────
@@ -40,6 +57,7 @@ export interface FederatedDTState {
   anomalyDetected: boolean;
   anomalyDimension: number; // 0 = none
   healthScore: number; // 0-255, 255 = perfect
+  batteryPct?: number; // 0-100 (derived from 47-byte battery_dv; PNR uses it)
 
   // Mission state: 0=idle, 1=transit, 2=survey, 3=emergency
   missionPhase: number;

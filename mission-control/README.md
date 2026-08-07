@@ -199,7 +199,8 @@ id,vehicle_id,timestamp,pose_x,pose_y,pose_z,yaw,...
   },
   "rq2": {
     "totalStateVectors": 1500000,
-    "fleetCoherence": 98.7
+    "fleetCoherence": 99.7,
+    "partitionRecoverySeconds": 8
   }
 }
 ```

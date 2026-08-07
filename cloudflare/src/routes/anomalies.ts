@@ -5,8 +5,12 @@
 
 import { Hono } from "hono";
 import type { Env } from "../types";
+import { requireAuth } from "../middleware/auth";
 
 export const anomalyRoutes = new Hono<{ Bindings: Env }>();
+
+// Protect all anomaly routes: researcher+ read, operator+ acknowledge.
+anomalyRoutes.use("*", requireAuth("researcher"));
 
 /** GET / — List anomalies with filtering. */
 anomalyRoutes.get("/", async (c) => {

@@ -37,6 +37,11 @@ services:
       - "7447:7447/udp"
     volumes:
       - ./zenoh/acoustic.json5:/etc/zenoh/zenoh.json5:ro
+      # Phase 6 (C5): Zenoh TLS certs — generate with
+      # scripts/ci/generate_zenoh_tls.sh. The router serves the TLS listener
+      # (see acoustic.json5 `tls/0.0.0.0:7447`); the gateway connects via the
+      # same CA-signed chain.
+      - ../configs/security/zenoh:/etc/zenoh/tls:ro
     command: ["-c", "/etc/zenoh/zenoh.json5"]
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:7447 2>&1 || true"]
@@ -111,7 +116,9 @@ services:
       - AUV_COUNT=2
       - GOSSIP_INTERVAL_MS=500
       - PARTITION_TIMEOUT_S=30
-      - RUST_LOG=iort_dt_federation=info
+      # Filter must match the BINARY target (iort_federation), not the lib
+      # crate (iort_dt_federation) — otherwise the node's logs are filtered out.
+      - RUST_LOG=iort_federation=info,iort_dt_federation=info
     depends_on:
       zenoh-router:
         condition: service_healthy

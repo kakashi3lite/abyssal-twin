@@ -5,8 +5,12 @@
 
 import { Hono } from "hono";
 import type { Env, Mission } from "../types";
+import { requireAuth } from "../middleware/auth";
 
 export const missionRoutes = new Hono<{ Bindings: Env }>();
+
+// Protect all mission routes: researcher+ read, operator+ create.
+missionRoutes.use("*", requireAuth("researcher"));
 
 /** POST / — Create a new mission. Returns mission ID. */
 missionRoutes.post("/", async (c) => {

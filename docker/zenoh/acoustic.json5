@@ -13,6 +13,10 @@
     endpoints: [
       "tcp/0.0.0.0:7447",
       "udp/0.0.0.0:7447"
+      // Phase 6 (C5): TLS listener. Enable by uncommenting + mounting certs.
+      // Generate with scripts/ci/generate_zenoh_tls.sh, then mount
+      // configs/security/zenoh/ into the container and set the paths below.
+      // "tls/0.0.0.0:7447"
     ]
   },
 

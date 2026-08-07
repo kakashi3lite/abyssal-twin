@@ -1,7 +1,7 @@
 # IoRT-DT Master Makefile
 # Canonical commands for research reproducibility
 
-.PHONY: all bootstrap build test test-rq1 test-rq2 test-rq3 test-rq4 test-all \
+.PHONY: all bootstrap build test test-rq1 test-rq2 test-rq3 test-rq4 test-rq5 test-wasm test-all \
         demo paper-figures red-team clean lint format docs
 
 COMPOSE := docker compose -f docker/docker-compose.simulation.yml
@@ -37,13 +37,11 @@ test-rq1: ## RQ1: Validate compression ratio >10:1, F1>0.9 at 0.5Hz sync
 		-v --tb=short --timeout=300
 	@echo "✅ RQ1 tests passed"
 
-test-rq2: ## RQ2: Validate federation convergence <60s, RMS error <2m
-	@echo "🧪 Testing RQ2: Federated DT Coordination..."
-	$(COMPOSE) run --rm ros2 bash -c \
-		"source /opt/ros/jazzy/setup.bash && \
-		 cd /workspace && \
-		 python3 experiments/rq2_federation/validate.py --auv-count 4 --partition-duration 120"
-	@echo "✅ RQ2 tests passed"
+test-rq2: ## RQ2: Fleet resilience — empirical partition recovery + coherence (no Docker required)
+	@echo "🧪 Testing RQ2: Fleet resilience (Markov packet loss + partition + heal)..."
+	cargo test --manifest-path src/iort_dt_federation/Cargo.toml --test fleet_resilience
+	$(PYTHON) experiments/rq2_federation/validate.py --cargo-manifest src/iort_dt_federation/Cargo.toml
+	@echo "✅ RQ2 tests passed (measured, not claimed)"
 
 test-rq3: ## RQ3: Validate ARL₀>10000, detection delay <120s
 	@echo "🧪 Testing RQ3: Physics-Informed Anomaly Detection..."
@@ -51,17 +49,29 @@ test-rq3: ## RQ3: Validate ARL₀>10000, detection delay <120s
 		-v --tb=short --timeout=600
 	@echo "✅ RQ3 tests passed"
 
-test-rq4: ## RQ4: Validate handshake <30s, encryption overhead <15%
-	@echo "🧪 Testing RQ4: DDS Security under Acoustic Constraints..."
-	$(PYTHON) scripts/attacks/replay_attack.py --duration 30 --seed 42
+test-rq4: ## RQ4: Per-message HMAC auth (C5) — cross-tier Python/Rust vectors
+	@echo "🧪 Testing RQ4: Per-message HMAC authentication (acoustic link)..."
+	$(PYTHON) -m pytest tests/property/test_rq4_hmac.py \
+		-v --tb=short --timeout=120
 	@echo "✅ RQ4 tests passed"
+
+test-rq5: ## RQ5: Empirical ARL₀ Monte Carlo validation (Siegmund caveat)
+	@echo "🧪 Testing RQ5: Empirical ARL₀ Monte Carlo (Siegmund divergence)..."
+	$(PYTHON) -m pytest tests/property/test_rq5_empirical_arl0.py \
+		-v --tb=short --timeout=600
+	@echo "✅ RQ5 tests passed"
 
 test-rust: ## Run Rust federation tests
 	@echo "🦀 Testing Rust federation crate..."
 	cargo test --manifest-path src/iort_dt_federation/Cargo.toml
 	@echo "✅ Rust tests passed"
 
-test-all: test-rust test-rq1 test-rq3 ## Run all tests (RQ2 requires Docker, RQ4 requires certs)
+test-wasm: ## Phase 7: Rust-WASM browser engine (kalman/cusum/pnr/decode) — native tests
+	@echo "🦀 Testing Rust-WASM engine crate (iort-twin-wasm)..."
+	cargo test --manifest-path src/iort_twin_wasm/Cargo.toml
+	@echo "✅ WASM engine tests passed"
+
+test-all: test-rust test-wasm test-rq1 test-rq2 test-rq3 test-rq4 test-rq5 ## Run all tests (simulation-based; no Docker required)
 	@echo "✅ All tests passed"
 
 test: test-all ## Alias for test-all

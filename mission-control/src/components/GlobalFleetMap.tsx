@@ -55,7 +55,13 @@ export interface GlobalFleetMapProps {
 export interface FleetAlert {
   id: string;
   assetId: number;
-  type: 'pnr_breach' | 'anomaly' | 'communication_loss' | 'battery_low' | 'depth_exceedance';
+  type:
+    | 'anomaly'
+    | 'pnr_breach'
+    | 'communication_loss'
+    | 'battery_low'
+    | 'depth_exceedance'
+    | 'health_warning';
   severity: AlertLevel;
   message: string;
   timestamp: Date;

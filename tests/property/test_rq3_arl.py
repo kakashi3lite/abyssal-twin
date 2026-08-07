@@ -193,7 +193,11 @@ def test_cusum_detects_thruster_fault_in_simulation() -> None:
     for i in range(MAX_OBS):
         r = rng.normal(0, nominal_std, n_dims)
         if i >= FAULT_OBS:
-            r[6] += 0.20 * 2.0 * nominal_std[6]  # 20% efficiency loss → ~1.5σ
+            # 20% efficiency loss → ~1.5σ shift in thruster current residual.
+            # NOTE: previously this injected only 0.4σ (0.20×2.0×std), which is
+            # below the detector's reference value k=0.5 and mathematically
+            # undetectable by CUSUM. 1.5σ matches detectors.py verify_guarantees.
+            r[6] += 1.5 * nominal_std[6]
 
         signal = ResidualSignal(timestamp=i * 2.0, auv_id=0, values=r)
         alert = detector.update(signal)
@@ -283,7 +287,9 @@ def test_cusum_outperforms_threshold_baseline() -> None:
         r = rng.normal(0, nominal_std, n_dims)
         is_fault = i >= FAULT_START
         if is_fault:
-            r[6] += 0.25 * 2.0 * nominal_std[6]  # 25% fault
+            # 25% fault → ~1.5σ shift (above min_detectable_shift; previously
+            # only 0.5σ which is at the k=0.5 blind spot, making CUSUM F1 ≈ 0)
+            r[6] += 1.5 * nominal_std[6]
 
         signal = ResidualSignal(timestamp=float(i), auv_id=0, values=r)
 

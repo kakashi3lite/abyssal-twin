@@ -31,6 +31,8 @@ export interface StateVector {
   batteryPct?: number;  // 0–100 %
   pressureBar?: number; // ~300 bar at abyssal depth (1 bar ≈ 10 m seawater)
   heading?: number;     // 0–360 °, compass bearing
+  missionPhase?: number; // 0=idle 1=transit 2=survey 3=emergency (backend)
+  anomalyDimension?: number; // 0=none (backend)
 }
 
 export interface ResearchMetrics {

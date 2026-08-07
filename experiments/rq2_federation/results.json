@@ -1,0 +1,101 @@
+[
+  {
+    "auv_count": 4,
+    "loss": 0.3,
+    "partition_duration_s": 60,
+    "seed": 42,
+    "convergence_time_s": 8.0,
+    "steady_coherence_pct": 99.72,
+    "rms_error_m": 0.3724,
+    "converged": true,
+    "rounds": 91
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.3,
+    "partition_duration_s": 120,
+    "seed": 42,
+    "convergence_time_s": 8.0,
+    "steady_coherence_pct": 99.72,
+    "rms_error_m": 0.2287,
+    "converged": true,
+    "rounds": 121
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.3,
+    "partition_duration_s": 300,
+    "seed": 42,
+    "convergence_time_s": 8.0,
+    "steady_coherence_pct": 98.86,
+    "rms_error_m": 0.5518,
+    "converged": true,
+    "rounds": 211
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.5,
+    "partition_duration_s": 60,
+    "seed": 42,
+    "convergence_time_s": 10.0,
+    "steady_coherence_pct": 96.43,
+    "rms_error_m": 0.7879,
+    "converged": true,
+    "rounds": 91
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.5,
+    "partition_duration_s": 120,
+    "seed": 42,
+    "convergence_time_s": 8.0,
+    "steady_coherence_pct": 96.88,
+    "rms_error_m": 0.6385,
+    "converged": true,
+    "rounds": 121
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.5,
+    "partition_duration_s": 300,
+    "seed": 42,
+    "convergence_time_s": 8.0,
+    "steady_coherence_pct": 93.47,
+    "rms_error_m": 1.1718,
+    "converged": true,
+    "rounds": 211
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.7,
+    "partition_duration_s": 60,
+    "seed": 42,
+    "convergence_time_s": 16.0,
+    "steady_coherence_pct": 82.64,
+    "rms_error_m": 0.9703,
+    "converged": true,
+    "rounds": 91
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.7,
+    "partition_duration_s": 120,
+    "seed": 42,
+    "convergence_time_s": 20.0,
+    "steady_coherence_pct": 85.16,
+    "rms_error_m": 0.8776,
+    "converged": true,
+    "rounds": 121
+  },
+  {
+    "auv_count": 4,
+    "loss": 0.7,
+    "partition_duration_s": 300,
+    "seed": 42,
+    "convergence_time_s": 10.0,
+    "steady_coherence_pct": 83.33,
+    "rms_error_m": 1.8575,
+    "converged": true,
+    "rounds": 211
+  }
+]

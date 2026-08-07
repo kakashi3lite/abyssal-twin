@@ -113,6 +113,8 @@ impl CloudflareClient {
 
     /// Establish a WebSocket connection to the Durable Object.
     /// Used for real-time bidirectional sync when bandwidth allows.
+    /// Sends `Authorization: Bearer {api_token}` on the upgrade so the
+    /// Cloudflare /ws/live proxy can authenticate the gossip channel.
     pub async fn connect_websocket(
         &self,
         vessel_id: u8,
@@ -125,8 +127,17 @@ impl CloudflareClient {
         let url = format!("{}?vesselId={vessel_id}", self.ws_url);
         info!(url = %url, "Connecting WebSocket to Cloudflare DO");
 
-        let (ws_stream, response) =
-            tokio_tungstenite::connect_async(&url).await?;
+        // Build the upgrade request with the service-token Authorization header
+        // so the Cloudflare /ws/live proxy can authenticate the gossip channel.
+        let uri: tokio_tungstenite::tungstenite::http::Uri =
+            url.parse().map_err(anyhow::Error::from)?;
+        let request = tokio_tungstenite::tungstenite::handshake::client::Request::builder()
+            .uri(uri)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .body(())
+            .map_err(anyhow::Error::from)?;
+
+        let (ws_stream, response) = tokio_tungstenite::connect_async(request).await?;
 
         info!("WebSocket connected to Cloudflare Durable Object");
         Ok((ws_stream, response))

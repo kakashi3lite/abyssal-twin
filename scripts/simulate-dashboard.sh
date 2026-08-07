@@ -31,7 +31,7 @@ echo "└───────────────────────�
 echo ""
 printf "  %-45s %8s %12s\n" "Endpoint" "Status" "Latency"
 echo "  ─────────────────────────────────────────────────────────────────────────"
-printf "  %-45s %8s %12s\n" "GET /health" "200 OK" "45ms"
+printf "  %-45s %8s %12s\n" "GET /api/v1/health" "200 OK" "45ms"
 printf "  %-45s %8s %12s\n" "GET /api/v1/fleet/status" "200 OK" "78ms"
 printf "  %-45s %8s %12s\n" "GET /api/v1/fleet/metrics" "200 OK" "92ms"
 printf "  %-45s %8s %12s\n" "POST /api/v1/ingest" "200 OK" "124ms"

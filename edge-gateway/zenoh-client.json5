@@ -1,0 +1,41 @@
+// IoRT-DT Zenoh Configuration: Edge Gateway CLIENT (Phase 6 hardening)
+//
+// The gateway is a CLIENT of the vessel's Zenoh router — it must NOT listen
+// on 7447 (that's the router's job). The previous config pointed the gateway
+// at the router-mode acoustic.json5, which made the gateway try to bind
+// tcp/0.0.0.0:7447 itself → "Address already in use" whenever the docker
+// router was up. This client config connects to the router instead.
+//
+// Connects to:
+//   - the docker simulation router (tcp/localhost:7447)
+//   - or the vessel router in production (tcp/<vessel-lan-ip>:7447)
+// When [acoustic.tls] certs are configured, the bridge injects the TLS
+// transport block and the connect endpoint becomes tls/… automatically.
+
+{
+  mode: "client",
+
+  connect: {
+    endpoints: [
+      "tcp/localhost:7447"
+    ]
+  },
+
+  transport: {
+    unicast: {
+      lowlatency: false,
+      qos: {
+        enabled: true
+      }
+    }
+  },
+
+  adminspace: {
+    permissions: {
+      read: true,
+      write: false
+    }
+  },
+
+  plugins: {}
+}

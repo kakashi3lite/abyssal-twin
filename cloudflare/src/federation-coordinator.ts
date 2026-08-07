@@ -31,6 +31,31 @@ interface WebSocketMeta {
 }
 
 /**
+ * Rehydrate a VectorClock from any shape it takes after serialization:
+ *   1. A live VectorClock instance (in-memory)
+ *   2. VectorClock.toJSON() output: { "1": 5 } (JSON wire / ingest payload)
+ *   3. Structured-clone-restored instance: { clocks: Map<number, number> }
+ *      (DO storage round-trip keeps the Map but drops the prototype, so
+ *      toJSON()/toBytes() are gone — calling .toBytes() would throw)
+ *
+ * Merkle hashing and clock merge both need a real VectorClock, so every
+ * fleet-state consumer must rehydrate before use.
+ */
+export function rehydrateClock(
+  clock: VectorClock | Record<string, number> | { clocks: Map<number, number> | Record<string, number> }
+): VectorClock {
+  if (clock instanceof VectorClock) return clock;
+  if (clock && typeof clock === "object" && "clocks" in (clock as object)) {
+    const raw = (clock as { clocks: Map<number, number> | Record<string, number> }).clocks;
+    if (raw instanceof Map) return new VectorClock(raw);
+    return new VectorClock(
+      new Map(Object.entries(raw).map(([k, v]) => [Number(k), v]))
+    );
+  }
+  return VectorClock.fromJSON(clock as Record<string, number>);
+}
+
+/**
  * FederationCoordinator: Singleton Durable Object managing fleet-wide state.
  *
  * Responsibilities:
@@ -191,7 +216,14 @@ export class FederationCoordinator implements DurableObject {
   private async handleMerkleRoot(
     msg: GossipMerkleRoot
   ): Promise<GossipMessage | null> {
-    const localStates = [...this.fleetStates.values()];
+    // Rehydrate clocks FIRST: after a storage round-trip (hibernation) the
+    // restored states carry plain { clocks: Map } objects, so merkleHash's
+    // clock.toBytes() would throw and kill the WebSocket. This is why the
+    // root comparison must never run on un-rehydrated state.
+    const localStates = [...this.fleetStates.values()].map((s) => ({
+      ...s,
+      clock: rehydrateClock(s.clock),
+    }));
     const localTree = await MerkleTree.fromStates(localStates);
 
     const remoteRoot = msg.root instanceof Uint8Array
@@ -240,9 +272,7 @@ export class FederationCoordinator implements DurableObject {
       // Accept if no local state or remote is newer
       if (!local || remote.timestamp > local.timestamp) {
         // Rehydrate VectorClock from JSON if needed
-        remote.clock = remote.clock instanceof VectorClock
-          ? remote.clock
-          : VectorClock.fromJSON(remote.clock as unknown as Record<string, number>);
+        remote.clock = rehydrateClock(remote.clock);
 
         this.fleetStates.set(remote.auvId, remote);
       }
@@ -281,13 +311,8 @@ export class FederationCoordinator implements DurableObject {
       const wTotal = wLocal + wRemote;
 
       // Merge vector clocks
-      const mergedClock = local.clock instanceof VectorClock
-        ? local.clock
-        : VectorClock.fromJSON(local.clock as unknown as Record<string, number>);
-
-      const remoteClock = remote.clock instanceof VectorClock
-        ? remote.clock
-        : VectorClock.fromJSON(remote.clock as unknown as Record<string, number>);
+      const mergedClock = rehydrateClock(local.clock);
+      const remoteClock = rehydrateClock(remote.clock);
 
       mergedClock.merge(remoteClock);
 
@@ -308,6 +333,15 @@ export class FederationCoordinator implements DurableObject {
           ? remote.anomalyDimension
           : local.anomalyDimension,
         healthScore: Math.min(local.healthScore, remote.healthScore),
+        // Battery: conservative MIN — never overestimate energy after a
+        // partition (a PNR decision depends on it). Mirrors the Rust fusion.
+        ...(local.batteryPct !== undefined && remote.batteryPct !== undefined
+          ? { batteryPct: Math.min(local.batteryPct, remote.batteryPct) }
+          : local.batteryPct !== undefined
+          ? { batteryPct: local.batteryPct }
+          : remote.batteryPct !== undefined
+          ? { batteryPct: remote.batteryPct }
+          : {}),
         missionPhase: remote.missionPhase,
       };
 
@@ -325,9 +359,7 @@ export class FederationCoordinator implements DurableObject {
     for (const [id, state] of this.fleetStates) {
       states[id] = {
         ...state,
-        clock: state.clock instanceof VectorClock
-          ? state.clock
-          : VectorClock.fromJSON(state.clock as unknown as Record<string, number>),
+        clock: rehydrateClock(state.clock),
       };
     }
     return Response.json({ states, updatedAt: new Date().toISOString() });
@@ -343,9 +375,7 @@ export class FederationCoordinator implements DurableObject {
     // Merge incoming states
     if (body.states) {
       for (const state of body.states) {
-        state.clock = state.clock instanceof VectorClock
-          ? state.clock
-          : VectorClock.fromJSON(state.clock as unknown as Record<string, number>);
+        state.clock = rehydrateClock(state.clock);
         const local = this.fleetStates.get(state.auvId);
         if (!local || state.timestamp > local.timestamp) {
           this.fleetStates.set(state.auvId, state);
@@ -405,6 +435,17 @@ export class FederationCoordinator implements DurableObject {
       const batch: D1PreparedStatement[] = [];
 
       for (const [, state] of this.fleetStates) {
+        // Auto-register unknown auv_ids FIRST. state_vectors.vehicle_id has a
+        // FOREIGN KEY to vehicles(id); one unregistered AUV made the whole
+        // db.batch() fail, silently dropping the checkpoint of the ENTIRE
+        // fleet every alarm cycle. INSERT OR IGNORE keeps known vehicles intact.
+        batch.push(
+          db.prepare(
+            `INSERT OR IGNORE INTO vehicles (id, name, type, status)
+             VALUES (?, ?, 'auv', 'online')`
+          ).bind(state.auvId, `auv_${state.auvId}`)
+        );
+
         // Upsert vehicle last_seen and status
         batch.push(
           db.prepare(
@@ -413,21 +454,23 @@ export class FederationCoordinator implements DurableObject {
           ).bind(new Date(state.timestamp * 1000).toISOString(), state.auvId)
         );
 
-        // Insert state vector
+        // Insert state vector (ISO-8601 timestamp for /fleet/history consistency)
         batch.push(
           db.prepare(
             `INSERT INTO state_vectors
-             (vehicle_id, pose_x, pose_y, pose_z, yaw, position_variance,
-              health_score, mission_phase, anomaly_detected)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             (vehicle_id, timestamp, pose_x, pose_y, pose_z, yaw, position_variance,
+              health_score, battery_pct, mission_phase, anomaly_detected)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           ).bind(
             state.auvId,
+            new Date(state.timestamp * 1000).toISOString(),
             state.x,
             state.y,
             state.z,
             state.yaw,
             state.positionVariance,
             state.healthScore,
+            state.batteryPct ?? null,
             state.missionPhase,
             state.anomalyDetected ? 1 : 0
           )
@@ -446,20 +489,30 @@ export class FederationCoordinator implements DurableObject {
   private async persistAnomalies(anomalies: AnomalyEvent[]): Promise<void> {
     try {
       const db = this.env.FLEET_DB;
-      const batch = anomalies.map((a) =>
-        db.prepare(
-          `INSERT INTO anomalies
-           (vehicle_id, detected_at, detector_type, confidence, severity, dimension)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        ).bind(
-          a.vehicleId,
-          a.detectedAt,
-          a.detectorType,
-          a.confidence,
-          a.severity,
-          a.dimension
-        )
-      );
+      const batch: D1PreparedStatement[] = [];
+      for (const a of anomalies) {
+        // Auto-register the vehicle so an unknown auv_id can't fail the batch.
+        batch.push(
+          db.prepare(
+            `INSERT OR IGNORE INTO vehicles (id, name, type, status)
+             VALUES (?, ?, 'auv', 'online')`
+          ).bind(a.vehicleId, `auv_${a.vehicleId}`)
+        );
+        batch.push(
+          db.prepare(
+            `INSERT INTO anomalies
+             (vehicle_id, detected_at, detector_type, confidence, severity, dimension)
+             VALUES (?, ?, ?, ?, ?, ?)`
+          ).bind(
+            a.vehicleId,
+            a.detectedAt,
+            a.detectorType,
+            a.confidence,
+            a.severity,
+            a.dimension
+          )
+        );
+      }
       await db.batch(batch);
     } catch (err) {
       console.error("[Federation] Anomaly persist failed:", err);

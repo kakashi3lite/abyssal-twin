@@ -31,6 +31,11 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    // Dev proxy → local Worker (wrangler dev on :8787). Relative /api calls in
+    // the app hit this proxy, so no CORS is needed in development.
+    proxy: {
+      '/api': 'http://localhost:8787',
+    },
   },
   // Optimize dependencies for faster dev startup
   optimizeDeps: {

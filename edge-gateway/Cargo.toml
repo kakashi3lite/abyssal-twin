@@ -16,7 +16,10 @@ path = "src/main.rs"
 iort-dt-federation = { path = "../src/iort_dt_federation" }
 
 # Zenoh: matches existing federation crate (src/iort_dt_federation)
-zenoh = { version = "1.0", features = ["default"] }
+# transport_tls: C5 transport-layer encryption for the acoustic link (zero
+# per-message overhead). TLS is configured via [acoustic.tls] in config.toml;
+# when certs are absent the bridge falls back to plaintext (simulation).
+zenoh = { version = "1.0", features = ["default", "transport_tls"] }
 
 # HTTP client for Cloudflare Workers API (R2 uploads, REST ingest)
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip"] }
@@ -53,8 +56,9 @@ thiserror = "1.0"
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 
-# Crypto (certificate validation, data signing)
+# Crypto (certificate validation, data signing, per-message auth)
 sha2 = "0.10"
+hmac = "0.12"
 
 [dev-dependencies]
 tokio-test = "0.4"

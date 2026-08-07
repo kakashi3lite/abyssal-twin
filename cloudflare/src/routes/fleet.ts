@@ -4,8 +4,13 @@
 
 import { Hono } from "hono";
 import type { Env, FleetStatus, VehicleStatus } from "../types";
+import { requireAuth } from "../middleware/auth";
 
 export const fleetRoutes = new Hono<{ Bindings: Env }>();
+
+// Protect all fleet routes: researcher+ can read, operator+ can modify.
+// Cloudflare Access JWT (header/cookie) or gateway service token (Bearer).
+fleetRoutes.use("*", requireAuth("researcher"));
 
 /**
  * GET /status — Current fleet state from D1.
@@ -27,7 +32,7 @@ fleetRoutes.get("/status", async (c) => {
     SELECT v.id, v.name, v.type, v.status, v.last_seen,
            sv.pose_x, sv.pose_y, sv.pose_z, sv.yaw,
            sv.position_variance, sv.health_score, sv.mission_phase,
-           sv.anomaly_detected
+           sv.anomaly_detected, sv.battery_pct
     FROM vehicles v
     LEFT JOIN (
       SELECT vehicle_id, MAX(id) AS max_id
@@ -58,6 +63,9 @@ fleetRoutes.get("/status", async (c) => {
             anomalyDetected: (row.anomaly_detected as number) !== 0,
             anomalyDimension: 0,
             healthScore: row.health_score as number,
+            ...(row.battery_pct != null
+              ? { batteryPct: row.battery_pct as number }
+              : {}),
             missionPhase: row.mission_phase as number,
           }
         : null,

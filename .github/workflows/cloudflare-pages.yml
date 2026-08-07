@@ -27,6 +27,12 @@ permissions:
 env:
   # Default to production if not triggered via workflow_dispatch
   DEPLOY_ENV: ${{ github.event.inputs.environment || 'production' }}
+  # NOTE (Phase 6.5+): the dashboard is served from the SAME Access-protected
+  # origin as the API via the worker's [assets] binding (see deploy.yml + wrangler
+  # .toml). The separate Cloudflare Pages deployment is DEPRECATED — a Pages
+  # bundle cannot reach the API (CORS is locked to the Access origin) and the
+  # old baked base (api.abyssal-twin.dev) is NXDOMAIN. This workflow now only
+  # builds the dashboard as an artifact; the deploy job is a no-op notice.
 
 jobs:
   build:
@@ -59,9 +65,11 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
-          VITE_API_BASE: ${{ env.DEPLOY_ENV == 'production' && 'https://api.abyssal-twin.dev' || 'https://staging.abyssal-twin.dev' }}
-          VITE_WS_URL: ${{ env.DEPLOY_ENV == 'production' && 'wss://api.abyssal-twin.dev/ws/live' || 'wss://staging.abyssal-twin.dev/ws/live' }}
-          VITE_SSE_URL: ${{ env.DEPLOY_ENV == 'production' && 'https://api.abyssal-twin.dev/api/v1/fleet/stream' || 'https://staging.abyssal-twin.dev/api/v1/fleet/stream' }}
+          # Same-origin (empty) — the bundle is served by the worker's [assets]
+          # binding beside the API; a baked cross-origin base would be NXDOMAIN.
+          VITE_API_BASE: ''
+          VITE_WS_URL: '/ws/live'
+          VITE_SSE_URL: '/api/v1/fleet/stream'
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
 
       - name: Verify build
@@ -102,29 +110,15 @@ jobs:
       - name: Install Wrangler
         run: npm install -g wrangler@3
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Pages (DEPRECATED — worker assets are canonical)
         id: deploy
         working-directory: mission-control
         run: |
-          echo "Deploying to ${{ env.DEPLOY_ENV }} environment..."
-          
-          # Deploy using wrangler CLI
-          # This creates the project automatically if it doesn't exist
-          OUTPUT=$(wrangler pages deploy ../dist \
-            --project-name="${{ env.DEPLOY_ENV == 'production' && 'abyssal-mission-control' || 'abyssal-mission-control-staging' }}" \
-            --branch="${{ github.ref_name }}" \
-            --commit-hash="${{ github.sha }}" \
-            --commit-message="${{ github.event.head_commit.message }}" \
-            --compatibility-date="2026-03-06" 2>&1)
-          
-          echo "$OUTPUT"
-          
-          # Extract the deployment URL from output
-          URL=$(echo "$OUTPUT" | grep -oE 'https://[a-z0-9-]+\.pages\.dev' | head -1)
-          echo "deployment-url=$URL" >> "$GITHUB_OUTPUT"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          echo "::warning::Separate Cloudflare Pages deployment is DEPRECATED — the"
+          echo "::warning::dashboard is served by the worker's [assets] binding beside the API"
+          echo "::warning::(deploy.yml). A Pages bundle cannot reach the API (CORS locked to"
+          echo "::warning::the Access origin). Skipping Pages deploy; no project created."
+          echo "deployment-url=https://abyssal-twin.swanandtanavade100.workers.dev" >> "$GITHUB_OUTPUT"
 
       - name: Comment deployment URL
         if: github.event_name == 'pull_request'

@@ -1,0 +1,32 @@
+[package]
+name = "iort-twin-wasm"
+version = "1.0.0"
+edition = "2021"
+description = "Rust-WASM computation engine for Abyssal Twin Mission Control — mirrors Kalman fusion, CUSUM detection, PNR energy model, and 47-byte wire decode in the operator's browser"
+license = "Apache-2.0"
+authors = ["Swanand Tanavade <s.tanavade@unomaha.edu>"]
+repository = "https://github.com/swanand-tanavade/iort-dt"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "iort_twin_wasm"
+
+[dependencies]
+# wasm-bindgen v0.2.126 (MSRV 1.77) — ES-module output, auto TS bindings.
+# This crate deliberately has NO tokio / zenoh / nalgebra: pure std math so it
+# compiles cleanly to wasm32-unknown-unknown.
+wasm-bindgen = "0.2.126"
+
+# Size-optimised wasm: the acoustic bundle is delivered over satellite links.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+# Faster test builds
+[profile.test]
+opt-level = 1
+
+[lints.rust]
+unused = "warn"
