@@ -2,6 +2,24 @@
 
 > Loaded first by the Abyssal Architect agent on every task. Keep concise and current.
 
+## Current Phase: 8.7 — Mapbox Map Fixed + GitHub Pages Demo (2026-08-08)
+
+**Status: ✅ COMPLETE** — deployed `045a5393`; map works on production + demo.
+
+- Root cause: NO valid Mapbox token was ever baked (`.env` had `pk.placeholder`,
+  `.env.production` had none) → "Mapbox API token required" screen.
+- Fix: **hybrid engine** — Mapbox GL (dark-v11) with a valid `pk.*` token,
+  MapLibre GL (CARTO dark, token-free) otherwise. Token verified valid
+  (`TokenValid`, usage=pk, unrestricted).
+- Token config: gitignored `mission-control/.env.production` + `VITE_MAPBOX_TOKEN`
+  repo secret (set 2026-08-07T23:29Z). Advise URL-restricting in Mapbox dashboard
+  to: abyssal-twin.dalecabra.com, *.workers.dev, kakashi3lite.github.io.
+- **GitHub Pages demo**: `useFleetSSE` falls back to client-side `DemoDataEngine`
+  after 3 failed SSE attempts (no backend needed; SIMULATION badge kept).
+  `github-pages.yml` same-origin VITE_*. Real token from secret → Mapbox on demo.
+- Committed `06b29d7` (token NOT committed — 0 occurrences in diff).
+- Regression: mission-control 20 tests, build clean, live bundle `main-BDv_a4k9.js`.
+
 ## Current Phase: 8.6 — GitHub Sync + Deployment from GitHub (2026-08-08)
 
 **Status: ✅ REPO SYNCED** — all work committed (`934d0ae` + `628a92c`) and pushed to

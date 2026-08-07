@@ -1,5 +1,31 @@
 # Known Issues & Workarounds
 
+## RESOLVED: Mapbox Map Not Loading + GitHub Pages Demo (Phase 8.7 — 2026-08-08)
+Production dashboard (`abyssal-twin.dalecabra.com`) rendered "Mapbox API token
+required" because **no valid token was ever baked into the build** — local
+`.env` had `pk.placeholder` and `.env.production` had no `VITE_MAPBOX_TOKEN`.
+
+**Fix — hybrid map engine (token required no more):**
+- `GlobalFleetMap.tsx` now renders **Mapbox GL (dark-v11) when a valid `pk.*`
+  token is present**, and falls back to a **token-free MapLibre GL (CARTO dark
+  raster)** otherwise. The map can never show a dead "token required" screen.
+- The real Mapbox public token (`pk.eyJ1Ijoia2FrYXNo...`) is configured in the
+  **gitignored** `mission-control/.env.production` and as the `VITE_MAPBOX_TOKEN`
+  repo secret (GitHub Actions builds). It is a PUBLIC token (designed for client
+  embedding) — for security it should be URL-restricted in the Mapbox dashboard
+  to: `abyssal-twin.dalecabra.com`, `*.workers.dev`, `kakashi3lite.github.io`.
+  Verified valid via Mapbox tokens API (`TokenValid`, usage=pk).
+- Deployed `045a5393` — served bundle `main-BDv_a4k9.js` contains the token;
+  mapbox-gl + maplibre chunks both 200.
+
+**GitHub Pages demo** (`kakashi3lite.github.io/abyssal-twin/`) previously had no
+backend and dead `api.abyssal-twin.dev` VITE vars → "LINK DOWN" screen.
+- `useFleetSSE` now falls back to the **client-side DemoDataEngine** after 3
+  failed SSE attempts — realistic 4-AUV abyssal mission data, SIMULATION badge
+  kept (provenance honest). `github-pages.yml` uses same-origin VITE_*.
+- `VITE_MAPBOX_TOKEN` secret set (2026-08-07T23:29Z) so the GH Pages map uses
+  Mapbox GL too.
+
 ## RESOLVED: Cloudflare Config Audit — Dead Hosts + Obsolete Pages Pipeline (Phase 8.5 — 2026-08-08)
 Full Cloudflare configuration audit with live verification found and fixed:
 - **`deploy.yml` hit dead hosts**: production env `url: https://abyssal-twin.dev` and
