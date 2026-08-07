@@ -41,11 +41,14 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
-          # GitHub Pages uses the same API endpoints
-          VITE_API_BASE: https://api.abyssal-twin.dev
-          VITE_WS_URL: wss://api.abyssal-twin.dev/ws/live
-          VITE_SSE_URL: https://api.abyssal-twin.dev/api/v1/fleet/stream
-          # Mapbox token for geospatial visualization
+          # GitHub Pages has NO backend — the app's useFleetSSE hook detects
+          # the unreachable API and falls back to the self-contained
+          # client-side DemoDataEngine (SIMULATION badge shown, data accurate).
+          # Same-origin (empty) avoids the dead api.abyssal-twin.dev host.
+          VITE_API_BASE: ''
+          VITE_WS_URL: '/ws/live'
+          VITE_SSE_URL: '/api/v1/fleet/stream'
+          # Mapbox public token for the fleet map (URL-restrict in Mapbox).
           VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
 
       - name: Verify build

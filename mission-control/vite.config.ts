@@ -20,8 +20,8 @@ export default defineConfig({
       },
       output: {
         manualChunks: {
-          // Separate mapbox into its own chunk for better caching
-          'mapbox-gl': ['mapbox-gl'],
+          // Separate the (token-free) map engine into its own chunk for caching
+          'maplibre-gl': ['maplibre-gl'],
           // React and related
           'react-vendor': ['react', 'react-dom'],
         },

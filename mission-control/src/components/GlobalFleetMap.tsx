@@ -6,10 +6,43 @@
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import Map, { Marker, NavigationControl, Popup } from 'react-map-gl';
-import type { MapRef } from 'react-map-gl';
+import { Map as MapboxMap, Marker, NavigationControl, Popup } from 'react-map-gl';
+import { Map as MapLibreMap } from 'react-map-gl/maplibre';
+import type { MapRef } from 'react-map-gl/maplibre';
 import type { Vehicle } from '../types';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
+// Token-free dark basemap (CARTO dark-matter raster, OSM data) — used as the
+// fallback when no valid Mapbox public token is present, so the map NEVER
+// renders a dead "token required" screen on any origin.
+const CARTO_DARK_STYLE = {
+  version: 8 as const,
+  sources: {
+    carto: {
+      type: 'raster' as const,
+      tiles: ['https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors © CARTO',
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: 'carto-dark',
+      type: 'raster' as const,
+      source: 'carto',
+      paint: { 'raster-opacity': 0.92 },
+    },
+  ],
+};
+
+/** A Mapbox token is usable only when it is a real public key (pk.*), not
+ *  empty or a placeholder. Public pk.* tokens are designed for embedding in
+ *  frontend code; restrict them by URL in the Mapbox dashboard for security. */
+function isUsableMapboxToken(t: string | undefined): boolean {
+  return !!t && t.startsWith('pk.') && t.length > 40 && !/placeholder/i.test(t);
+}
 
 // ============================================
 // TYPES & INTERFACES
@@ -45,7 +78,9 @@ export type AlertLevel = 'normal' | 'warning' | 'critical' | 'emergency';
 
 export interface GlobalFleetMapProps {
   assets: FleetAsset[];
-  mapboxToken: string;
+  /** Deprecated — the map renders via MapLibre GL with no token. Kept for
+   *  backward compatibility with existing callers. */
+  mapboxToken?: string;
   onAssetSelect?: (asset: FleetAsset) => void;
   onClusterSelect?: (cluster: FleetCluster) => void;
   activeAlerts?: FleetAlert[];
@@ -200,7 +235,9 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
   activeAlerts = [],
   layerVisibility = { assets: true, clusters: true, tracks: false, missionBoundaries: true, heatmap: false },
 }) => {
-  const mapRef = React.useRef<MapRef>(null);
+  // Hybrid engine: Mapbox GL when a valid token is present, MapLibre otherwise.
+  // The ref type is the structural flyTo/fitBounds surface shared by both.
+  const mapRef = React.useRef<any>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null);
   const [hoveredAsset, setHoveredAsset] = useState<FleetAsset | null>(null);
   const [viewState, setViewState] = useState({
@@ -289,102 +326,112 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
     return alertMap;
   }, [activeAlerts]);
 
-  if (!mapboxToken) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-900 text-slate-400">
-        <div className="text-center p-8">
-          <div className="text-4xl mb-4">🗺️</div>
-          <p className="text-lg font-medium">Mapbox API token required</p>
-          <p className="text-sm mt-2">Set VITE_MAPBOX_TOKEN environment variable</p>
-        </div>
-      </div>
-    );
-  }
+  // Engine-agnostic overlays — rendered identically by Mapbox GL or MapLibre.
+  const mapChildren = (
+    <>
+      {/* Navigation controls */}
+      <NavigationControl position="bottom-right" />
+
+      {/* Cluster markers */}
+      {layerVisibility.clusters && clusters.map(cluster => (
+        <Marker
+          key={cluster.id}
+          longitude={cluster.longitude}
+          latitude={cluster.latitude}
+        >
+          <ClusterMarker cluster={cluster} onClick={() => handleClusterClick(cluster)} />
+        </Marker>
+      ))}
+
+      {/* Individual asset markers */}
+      {(viewState.zoom >= CLUSTER_ZOOM_THRESHOLD || !layerVisibility.clusters) && unclusteredAssets.map(asset => (
+        <Marker
+          key={asset.id}
+          longitude={asset.longitude}
+          latitude={asset.latitude}
+        >
+          <div
+            onMouseEnter={() => setHoveredAsset(asset)}
+            onMouseLeave={() => setHoveredAsset(null)}
+          >
+            <AssetMarker 
+              asset={asset} 
+              isSelected={selectedAssetId === asset.id}
+              onClick={() => handleAssetClick(asset)}
+            />
+          </div>
+        </Marker>
+      ))}
+
+      {/* Hover popup */}
+      {hoveredAsset && (
+        <Popup
+          longitude={hoveredAsset.longitude}
+          latitude={hoveredAsset.latitude}
+          offset={[0, -20]}
+          closeButton={false}
+          anchor="bottom"
+        >
+          <div className="p-2 min-w-[180px]">
+            <div className="font-semibold text-slate-800">{hoveredAsset.name}</div>
+            <div className="text-xs text-slate-500 uppercase tracking-wide">{hoveredAsset.type}</div>
+            <div className="mt-2 space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Region:</span>
+                <span className="text-slate-700 capitalize">{hoveredAsset.region}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mode:</span>
+                <span className="text-slate-700 capitalize">{hoveredAsset.operationalMode}</span>
+              </div>
+              {hoveredAsset.etPnr !== null && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">PNR:</span>
+                  <span className={hoveredAsset.etPnr <= 10 ? 'text-red-600 font-semibold' : 'text-slate-700'}>
+                    {Math.max(0, hoveredAsset.etPnr).toFixed(0)} min
+                  </span>
+                </div>
+              )}
+              {assetAlerts.get(hoveredAsset.id)?.map(alert => (
+                <div key={alert.id} className="text-red-600 font-medium mt-1">
+                  ⚠ {alert.message}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Popup>
+      )}
+    </>
+  );
+
+  const useMapbox = isUsableMapboxToken(mapboxToken);
 
   return (
     <div className="relative w-full h-full">
-      <Map
-        ref={mapRef}
-        {...viewState}
-        onMove={evt => setViewState(evt.viewState)}
-        mapboxAccessToken={mapboxToken}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
-        style={{ width: '100%', height: '100%' }}
-        attributionControl={false}
-      >
-        {/* Navigation controls */}
-        <NavigationControl position="bottom-right" />
-
-        {/* Cluster markers */}
-        {layerVisibility.clusters && clusters.map(cluster => (
-          <Marker
-            key={cluster.id}
-            longitude={cluster.longitude}
-            latitude={cluster.latitude}
-          >
-            <ClusterMarker cluster={cluster} onClick={() => handleClusterClick(cluster)} />
-          </Marker>
-        ))}
-
-        {/* Individual asset markers */}
-        {(viewState.zoom >= CLUSTER_ZOOM_THRESHOLD || !layerVisibility.clusters) && unclusteredAssets.map(asset => (
-          <Marker
-            key={asset.id}
-            longitude={asset.longitude}
-            latitude={asset.latitude}
-          >
-            <div
-              onMouseEnter={() => setHoveredAsset(asset)}
-              onMouseLeave={() => setHoveredAsset(null)}
-            >
-              <AssetMarker 
-                asset={asset} 
-                isSelected={selectedAssetId === asset.id}
-                onClick={() => handleAssetClick(asset)}
-              />
-            </div>
-          </Marker>
-        ))}
-
-        {/* Hover popup */}
-        {hoveredAsset && (
-          <Popup
-            longitude={hoveredAsset.longitude}
-            latitude={hoveredAsset.latitude}
-            offset={[0, -20]}
-            closeButton={false}
-            anchor="bottom"
-          >
-            <div className="p-2 min-w-[180px]">
-              <div className="font-semibold text-slate-800">{hoveredAsset.name}</div>
-              <div className="text-xs text-slate-500 uppercase tracking-wide">{hoveredAsset.type}</div>
-              <div className="mt-2 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Region:</span>
-                  <span className="text-slate-700 capitalize">{hoveredAsset.region}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Mode:</span>
-                  <span className="text-slate-700 capitalize">{hoveredAsset.operationalMode}</span>
-                </div>
-                {hoveredAsset.etPnr !== null && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">PNR:</span>
-                    <span className={hoveredAsset.etPnr <= 10 ? 'text-red-600 font-semibold' : 'text-slate-700'}>
-                      {Math.max(0, hoveredAsset.etPnr).toFixed(0)} min
-                    </span>
-                  </div>
-                )}
-                {assetAlerts.get(hoveredAsset.id)?.map(alert => (
-                  <div key={alert.id} className="text-red-600 font-medium mt-1">
-                    ⚠ {alert.message}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Popup>
-        )}
-      </Map>
+      {useMapbox ? (
+        <MapboxMap
+          ref={mapRef}
+          {...viewState}
+          onMove={evt => setViewState(evt.viewState)}
+          mapboxAccessToken={mapboxToken}
+          mapStyle="mapbox://styles/mapbox/dark-v11"
+          style={{ width: '100%', height: '100%' }}
+          attributionControl={false}
+        >
+          {mapChildren}
+        </MapboxMap>
+      ) : (
+        <MapLibreMap
+          ref={mapRef}
+          {...viewState}
+          onMove={evt => setViewState(evt.viewState)}
+          mapStyle={CARTO_DARK_STYLE}
+          style={{ width: '100%', height: '100%' }}
+          attributionControl={false}
+        >
+          {mapChildren}
+        </MapLibreMap>
+      )}
 
       {/* Alert overlay */}
       {activeAlerts.length > 0 && (

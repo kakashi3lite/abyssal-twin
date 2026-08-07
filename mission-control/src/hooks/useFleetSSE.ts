@@ -13,9 +13,14 @@
 import { useState, useEffect, useRef } from "react";
 import type { FleetStatus, Vehicle, StateVector } from "../types";
 import { apiUrl } from "../lib/config";
+import { DemoDataEngine } from "../demo-data";
 
 const SIMULATION_URL = () => apiUrl("/api/v1/simulate");
 const STREAM_URL = () => apiUrl("/api/v1/fleet/stream");
+// After this many failed SSE connection attempts with no successful message,
+// fall back to the self-contained client-side DemoDataEngine (works with NO
+// backend — this is what powers the GitHub Pages research demo).
+const DEMO_FALLBACK_ATTEMPTS = 3;
 
 export interface UseFleetSSEResult {
   fleetState: FleetStatus | null;
@@ -81,11 +86,31 @@ export function useFleetSSE(): UseFleetSSEResult {
   const [error, setError] = useState<string | null>(null);
   const retryCount = useRef(0);
   const simulationRef = useRef(false);
+  const demoEngineRef = useRef<DemoDataEngine | null>(null);
+  const failuresRef = useRef(0);
 
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let retryTimeout: ReturnType<typeof setTimeout>;
     let disposed = false;
+
+    /** Start the client-side DemoDataEngine — the ultimate no-backend fallback
+     *  (GitHub Pages demo). Produces realistic AUV mission data locally, with
+     *  the SIMULATION badge kept visible so provenance is never hidden. */
+    function startDemoEngine() {
+      if (demoEngineRef.current) return;
+      const engine = new DemoDataEngine();
+      demoEngineRef.current = engine;
+      engine.start((fleet) => {
+        if (disposed) return;
+        simulationRef.current = true;
+        setSimulationMode(true);
+        setFleetState(fleet);
+        setConnected(true);
+        setError(null);
+        retryCount.current = 0;
+      });
+    }
 
     function currentUrl(): string {
       if (simulationRef.current) return SIMULATION_URL();
@@ -107,6 +132,7 @@ export function useFleetSSE(): UseFleetSSEResult {
         switchToSimulation();
         return;
       }
+      failuresRef.current = 0;
       setFleetState({ vehicles, updatedAt: new Date().toISOString() });
       retryCount.current = 0;
     }
@@ -129,6 +155,15 @@ export function useFleetSSE(): UseFleetSSEResult {
 
       eventSource.onerror = () => {
         setConnected(false);
+        // Count consecutive failures; after the threshold with no successful
+        // message, fall back to the self-contained demo engine (GH Pages demo
+        // has no backend at all — never leave the operator with a dead screen).
+        failuresRef.current += 1;
+        if (failuresRef.current >= DEMO_FALLBACK_ATTEMPTS) {
+          eventSource?.close();
+          startDemoEngine();
+          return;
+        }
         const attempt = retryCount.current++;
         const delay = Math.min(1000 * 2 ** attempt, 30000);
         setError(`Link degraded — reconnecting in ${Math.round(delay / 1000)}s`);
@@ -142,10 +177,12 @@ export function useFleetSSE(): UseFleetSSEResult {
       .then((r) => (r.ok ? r.json() : null))
       .then((data: any) => {
         if (disposed || !data?.vehicles || data.vehicles.length === 0) return;
+        failuresRef.current = 0;
         setFleetState(data);
       })
       .catch(() => {
-        /* stream will provide state; ignore */
+        // No backend reachable (e.g. GitHub Pages) — the SSE retries below
+        // will trigger the demo engine fallback; nothing else to do here.
       });
 
     connect();
@@ -154,6 +191,8 @@ export function useFleetSSE(): UseFleetSSEResult {
       disposed = true;
       eventSource?.close();
       clearTimeout(retryTimeout);
+      demoEngineRef.current?.stop?.();
+      demoEngineRef.current = null;
     };
   }, []);
 
