@@ -40,8 +40,19 @@ const CARTO_DARK_STYLE = {
 /** A Mapbox token is usable only when it is a real public key (pk.*), not
  *  empty or a placeholder. Public pk.* tokens are designed for embedding in
  *  frontend code; restrict them by URL in the Mapbox dashboard for security. */
-function isUsableMapboxToken(t: string | undefined): boolean {
+export function isUsableMapboxToken(t: string | undefined): boolean {
   return !!t && t.startsWith('pk.') && t.length > 40 && !/placeholder/i.test(t);
+}
+
+/** Hybrid-engine decision. Mapbox GL only when we have a usable token AND it
+ *  has not failed to initialize at runtime; otherwise fall back to the
+ *  token-free MapLibre/CARTO basemap so the map NEVER shows a dead canvas
+ *  (markers without a basemap). */
+export function shouldUseMapbox(
+  token: string | undefined,
+  mapboxFailed: boolean
+): boolean {
+  return isUsableMapboxToken(token) && !mapboxFailed;
 }
 
 // ============================================
@@ -123,7 +134,7 @@ const CLUSTER_ZOOM_THRESHOLD = 5;
 // UTILITY FUNCTIONS
 // ============================================
 
-function calculateAlertLevel(asset: FleetAsset): AlertLevel {
+export function calculateAlertLevel(asset: FleetAsset): AlertLevel {
   if (asset.etPnr !== null && asset.etPnr <= 0) return 'emergency';
   if (asset.etPnr !== null && asset.etPnr <= 10) return 'critical';
   const battery = asset.latestState?.batteryPct ?? 100;
@@ -132,7 +143,7 @@ function calculateAlertLevel(asset: FleetAsset): AlertLevel {
   return 'normal';
 }
 
-function getAlertColor(level: AlertLevel): string {
+export function getAlertColor(level: AlertLevel): string {
   switch (level) {
     case 'emergency': return '#dc2626';
     case 'critical': return '#ea580c';
@@ -141,7 +152,7 @@ function getAlertColor(level: AlertLevel): string {
   }
 }
 
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
   const φ1 = lat1 * Math.PI / 180;
   const φ2 = lat2 * Math.PI / 180;
@@ -245,6 +256,13 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
     latitude: 25,
     zoom: 2
   });
+  // Runtime engine health: if Mapbox GL fails to initialize (WebGL, blob
+  // worker, style 401, network), fall back to the token-free MapLibre/CARTO
+  // basemap instead of leaving a blank canvas under the markers.
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapFailed, setMapFailed] = useState(false);
+  // Engine decision (hoisted so the fitBounds effect can depend on it).
+  const useMapbox = shouldUseMapbox(mapboxToken, mapFailed);
 
   // Calculate clusters
   const clusters = useMemo((): FleetCluster[] => {
@@ -302,7 +320,8 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
     onAssetSelect?.(asset);
   }, [onAssetSelect]);
 
-  // Fit bounds to assets when loaded
+  // Fit bounds to assets when loaded (re-run after an engine fallback swap so
+  // the MapLibre map refits to the same fleet area).
   useEffect(() => {
     if (assets.length > 0 && mapRef.current) {
       const lats = assets.map(a => a.latitude);
@@ -313,7 +332,7 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
       ];
       mapRef.current.fitBounds(bounds, { padding: 100, duration: 1500 });
     }
-  }, [assets]);
+  }, [assets, useMapbox]);
 
   // Filter alerts for assets
   const assetAlerts = useMemo(() => {
@@ -404,8 +423,6 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
     </>
   );
 
-  const useMapbox = isUsableMapboxToken(mapboxToken);
-
   return (
     <div className="relative w-full h-full">
       {useMapbox ? (
@@ -417,6 +434,15 @@ export const GlobalFleetMap: React.FC<GlobalFleetMapProps> = ({
           mapStyle="mapbox://styles/mapbox/dark-v11"
           style={{ width: '100%', height: '100%' }}
           attributionControl={false}
+          onLoad={() => setMapLoaded(true)}
+          onError={(e) => {
+            // Any error before the map first loads (style 401, CSP-blocked blob
+            // worker, WebGL failure, network) means a blank canvas. Fail over
+            // to the token-free MapLibre/CARTO basemap so operators always have
+            // geographic context. Post-load errors are transient (tile retries)
+            // and must NOT tear down a healthy map.
+            if (!mapLoaded) setMapFailed(true);
+          }}
         >
           {mapChildren}
         </MapboxMap>

@@ -5,9 +5,12 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(self)
   # CSP must permit the map engines:
   #  - worker-src blob:  → Mapbox GL / MapLibre decode vector tiles in a blob Web Worker
+  #  - script-src blob:  → Mapbox GL JS v3 loads its worker script from a blob URL
+  #                       (official v3 requirement; without it Safari blocks the worker)
+  #  - child-src blob:   → legacy fallback for worker-src in older Safari
   #  - img-src https:    → sprite images + raster tiles (api.mapbox.com, basemaps.cartocdn.com)
   #  - connect-src https:→ style JSON, vector .pbf tiles, glyphs (fetch)
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; worker-src 'self' blob:; font-src 'self' https: data:;
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https: wss: blob: data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; worker-src 'self' blob:; child-src 'self' blob:; font-src 'self' https: data:;
   # HTML must revalidate so security/map headers are always fresh (assets below
   # override this with immutable caching).
   Cache-Control: no-cache
